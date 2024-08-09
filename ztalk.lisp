@@ -10,6 +10,10 @@
 (defmacro rfn (name params &rest body)
   `(labels ((,name ,params ,@body)) #',name))
 
+;(defmacro aif (c then &rest else)
+;  `(let ((it ,c))
+;     (if it ,then ,@else)))
+
 ;(defmacro afn (params &rest body)
 ;  `(rfn self ,params ,@body))
 
@@ -30,6 +34,10 @@
        ,@xs
        ,gx)))
 
+(defun gensyms (n)
+  (unless (zerop n)
+    (cons (gensym) (gensyms (- n 1)))))
+
 ; reader
 
 (defun skip-space ()
@@ -47,16 +55,16 @@
 (defun read-sym-char ()
   (read-char-if #'sym-char-p))
 
+(defun read-atom ()
+  (with-output-to-string (s)
+    (awhile (read-sym-char)
+      (write-char it s))))
+
 (defun zt-read ()
   (let ((c (peek-char t nil nil)))
     (if (char= c #\()
       (read-list)
       (read-atom))))
-
-(defun read-atom ()
-  (with-output-to-string (s)
-    (awhile (read-sym-char)
-      (write-char it s))))
 
 (defun read-cdr ()
   (let ((c (peek-char t)))
@@ -72,50 +80,88 @@
 
 (defvar *free-vars*)
 
-(declaim (ftype (function (t t) t) compile))
+(declaim (ftype (function (t t t) t) compile))
 
 (defun car-is (x y) (and (consp x) (eq (car x) y)))
 
-(defun compile-var (x env)
+(defun declare-var (x env)
   (unless (member x env)
     (push x *free-vars*))
   x)
 
-(defun compile-set (x env)
-  `(setq ,(compile-var (car x) env) ,(compile (cadr x) env)))
+(defun variable-p (x)
+  (and (symbolp x)
+       (not (null x))
+       (not (eq x t))))
 
-(defun compile-if (x env)
-  (unless (null x)
-    (let ((cc (compile (car x) env)))
-      (if (null (cdr x))
-        cc
-        `(if ,cc
-           ,(compile (cadr x) env)
-           ,(compile-if (cddr x) env))))))
+(defun compile-var (k x env)
+  (declare-var x env)
+    `(funcall ,k ,x))
 
-(defun compile-many (xs env)
-  (mapcar (lambda (x) (compile x env)) xs))
+(defun compile-value (k x) `(funcall ,k ,x))
 
-(defun compile-fn (exp env)
-  (let ((params (car exp)))
-    `(lambda ,params ,@(compile-many (cdr exp) (append params env)))))
+(defun compile-set (k x env)
+  (destructuring-bind (var exp) x
+    (declare-var var env)
+    (cond ((atom exp) (if (variable-p exp) (declare-var exp env))
+                      `(funcall ,k (setq ,var ,exp)))
+          (t          (w/uniq (val)
+                        (compile `(lambda (,val) (funcall ,k (setq ,var ,val)))
+                                 exp env))))))
 
-;(defun compile-list (xs env)
-;  (let ((x (car xs)))
-;    (if (and (symbolp x) (free x env))
+(defun compile-if (k x env)
+  (cond ((null x)          `(funcall ,k nil))
+        ((null (cdr x))    (compile k (car x) env))
+        ((not (symbolp k)) (w/uniq (k2) `(let ((,k2 ,k)) ,(compile-if k2 x env))))
+        ((atom (car x))    `(if ,(car x)
+                                ,(compile k (cadr x) env)
+                                ,(compile-if k (cddr x) env)))
+        (t                 (w/uniq (val)
+                             (compile `(lambda (,val)
+                                         (if ,val
+                                             ,(compile k (cadr x) env)
+                                             ,(compile-if k (cddr x) env)))
+                                      (car x) env)))))
+      
+(defun compile-body (k x env)
+  (cond ((null x)       `(funcall ,k nil))
+        ((null (cdr x)) (compile k (car x) env))
+        ((atom (car x)) `(progn ,(car x)
+                                ,(compile-body k (cdr x) env)))
+        (t              (w/uniq (val)
+                          (compile `(lambda (,val) ,(compile-body k (cdr x) env))
+                                   (car x) env)))))
 
-(defun compile-funcall (xs env)
-  (let ((cxs (compile-many xs env)))
-    `(funcall ,(car cxs) ,@(cdr cxs))))
 
-(defun compile (x env)
-  (cond ((or (null x) (eq x t)) x)
-        ((symbolp x)     (compile-var x env))
-        ((car-is x 'set) (compile-set (cdr x) env))
-        ((car-is x 'if)  (compile-if (cdr x) env))
-        ((car-is x 'fn)  (compile-fn (cdr x) env))
-        ((consp x)       (compile-funcall x env))
-        (t               x)))
+(defun compile-fn (k exp env)
+  (destructuring-bind (params &rest body) exp
+    (w/uniq (k2)
+      `(funcall ,k (lambda (,k2 ,@params)
+                     ,(compile-body k2 body (append params env)))))))
+
+(defun compile-many (k xs rs env)
+  (cond ((null xs)       `(funcall ,k ,@(reverse rs)))
+        ((atom (car xs)) (if (variable-p (car xs)) (declare-var (car xs) env))
+                         (compile-many k (cdr xs) (cons (car xs) rs) env))
+        (t               (w/uniq (k2 val)
+                           `(let ((,k2 (lambda (,val)
+                                         ,(compile-many k (cdr xs) (cons val rs) env))))
+                              ,(compile k2 (car xs) env))))))
+
+(defun compile-funcall (k x env)
+  (let ((args (gensyms (length x))))
+    (compile-many `(lambda ,args (funcall ,(car args) ,k ,@(cdr args))) x '() env)))
+
+(defun compile (k x env)
+  (cond ((or (null x)
+             (eq x t))   (compile-value k x))
+        ((symbolp x)     (compile-var k x env))
+        ((atom x)        (compile-value k x))
+        ((car-is x 'set) (compile-set k (cdr x) env))
+        ((car-is x 'if)  (compile-if k (cdr x) env))
+        ((car-is x 'fn)  (compile-fn k (cdr x) env))
+        ((consp x)       (compile-funcall k x env))
+        (t               (error (format t "Can't compile ~S" x)))))
 
 (defstruct eof)
 (defvar *eof-object* (make-eof))
@@ -128,10 +174,14 @@
 
 (defun eval (x)
   (let ((*free-vars* nil))
-    (let ((cx (compile x nil)))
-      (format t "free vars:: ~S~%" *free-vars*)
-      (format t "Compiled: ~S~%" cx)
-      (funcall (cl:compile nil `(lambda () (declare (special ,@*free-vars*)) ,cx))))))
+    (w/uniq (k)
+      (let ((cx (compile k x nil)))
+        (format t "free vars:: ~S~%" *free-vars*)
+        (format t "Compiled: ~S~%" cx)
+        (funcall (cl:compile nil `(lambda (,k)
+                                    (declare (special ,@*free-vars*))
+                                    ,cx))
+                 #'identity)))))
 
 (defun prompt ()
   (princ "ztalk> ")
