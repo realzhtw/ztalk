@@ -234,7 +234,7 @@
 (defun ztalk-symbol (s)
   (intern (concatenate 'string *current-ztalk-package* "." (string-downcase (symbol-name s)))))
 
-(defun custom-read-delimited-list (s c)
+(defun ztalk-read-delimited-list (s c)
   (declare (ignore c))
   (let ((l (read-delimited-list #\) s)))
     (mapcar (lambda (x)
@@ -243,15 +243,15 @@
                 x))
             l)))
 
-(defvar *case-sensitive-readtable*
+(defvar *ztalk-readtable*
   (let ((rt (copy-readtable)))
     (setf (readtable-case rt) :preserve)
-    (set-macro-character #\( #'custom-read-delimited-list nil rt)
+    (set-macro-character #\( #'ztalk-read-delimited-list nil rt)
     rt))
 
 
 (defun read ()
-  (let ((*readtable* *case-sensitive-readtable*))
+  (let ((*readtable* *ztalk-readtable*))
     (if (peek-char t *standard-input* nil)
       (let ((x (cl:read)))
         (if (symbolp x)
@@ -282,7 +282,12 @@
                    (funcall ,k (progn ,@body))))))
 
 (zdef f (lambda (k x) (funcall k x)))
-(zdef call/cc (lambda (k f) (funcall f k (lambda (k2 k3) (funcall k k3)))))
+
+(zdef call/cc (lambda (k f)
+  (funcall f k (lambda (k2 k3)
+                 (declare (ignore k2))
+                 (funcall k k3)))))
+
 (zdefun cons (a b) (cons a b))
 (zdefun car (p) (car p))
 (zdefun cdr (p) (cdr p))
