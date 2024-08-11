@@ -92,7 +92,7 @@
   x)
 
 (defun litsymp (x)
-   (and (symbolp x) (member x '(true false nil))))
+   (and (symbolp x) (member x '(|zt.true| |zt.false| |zt.nil|))))
 
 (defun literalp (x)
   (or (characterp x)
@@ -114,8 +114,9 @@
   (emit-funcall k x))
 
 (defun zt-to-cl-literal (x)
-  (cond ((eq x 'true)  t)
-        ((eq x 'false) nil)
+  (cond ((eq x '|zt.true|)  t)
+        ((eq x '|zt.false|) nil)
+        ((eq x '|zt.nil|)   nil)
         (t             x)))
 
 (defun compile-literal (x k)
@@ -168,13 +169,14 @@
                      ,(compile-body k2 body (append params env)))))))
 
 (defun compile-many (xs rs env k)
-  (cond ((null xs)       (apply #'emit-funcall (cons k (reverse rs))))
-        ((atom (car xs)) (if (variablep (car xs)) (declare-var (car xs) env))
-                         (compile-many (cdr xs) (cons (car xs) rs) env k))
-        (t               (w/uniq (r)
-                           (compile (car xs) env
-                             `(lambda (,r)
-                                ,(compile-many (cdr xs) (cons r rs) env k)))))))
+  (cond ((null xs)            (apply #'emit-funcall (cons k (reverse rs))))
+        ((literalp (car xs))  (compile-many (cdr xs) (cons (zt-to-cl-literal (car xs)) rs) env k))
+        ((variablep (car xs)) (declare-var (car xs) env)
+                              (compile-many (cdr xs) (cons (car xs) rs) env k))
+        (t                    (w/uniq (r)
+                                (compile (car xs) env
+                                  `(lambda (,r)
+                                     ,(compile-many (cdr xs) (cons r rs) env k)))))))
 
 (defun compile-call (k x env)
   (let ((args (gensyms (length x))))
@@ -209,23 +211,53 @@
               (eq (z-type v) 'mac)))))
 
 (defun compile (x env k)
-  (cond ((literalp x)      (compile-literal x k))
-        ((symbolp x)       (compile-var x env k))
-        ((car-is x 'set)   (compile-set (cdr x) env k))
-        ((car-is x 'if)    (compile-if (cdr x) env k))
-        ((car-is x 'fn)    (compile-fn (cdr x) env k))
-        ((car-is x 'quote) (emit-funcall k `(quote ,(cadr x))))
-        ((consp x)         (compile-call k x env))
-        (t                 (error (format t "Can't compile ~S" x)))))
+  (cond ((literalp x)            (compile-literal x k))
+        ((symbolp x)             (compile-var x env k))
+        ((car-is x '|zt.set|)    (compile-set (cdr x) env k))
+        ((car-is x '|zt.if|)     (compile-if (cdr x) env k))
+        ((car-is x '|zt.fn|)     (compile-fn (cdr x) env k))
+        ((or (car-is x '|zt.quote|)
+             (car-is x 'quote))  (emit-funcall k `(quote ,(cadr x))))
+        ((consp x)               (compile-call k x env))
+        (t                       (error (format t "Can't compile ~S" x)))))
 
 (defstruct eof)
 (defvar *eof-object* (make-eof))
-(defun eof-object? (x) (eq x *eof-object*))
+(defun eof-object-p (x) (eq x *eof-object*))
+
+(defvar *current-ztalk-package* "zt")
+(defvar *case-sensitive-readtable*)
+
+(defun prefix-ztalk-package (s)
+  (intern (concatenate 'string *current-ztalk-package* "." (symbol-name s))))
+
+(defun ztalk-symbol (s)
+  (intern (concatenate 'string *current-ztalk-package* "." (string-downcase (symbol-name s)))))
+
+(defun custom-read-delimited-list (s c)
+  (declare (ignore c))
+  (let ((l (read-delimited-list #\) s)))
+    (mapcar (lambda (x)
+              (if (symbolp x)
+                (prefix-ztalk-package x)
+                x))
+            l)))
+
+(defvar *case-sensitive-readtable*
+  (let ((rt (copy-readtable)))
+    (setf (readtable-case rt) :preserve)
+    (set-macro-character #\( #'custom-read-delimited-list nil rt)
+    rt))
+
 
 (defun read ()
-  (if (peek-char t *standard-input* nil)
-    (cl:read)
-    *eof-object*))
+  (let ((*readtable* *case-sensitive-readtable*))
+    (if (peek-char t *standard-input* nil)
+      (let ((x (cl:read)))
+        (if (symbolp x)
+           (prefix-ztalk-package x)
+           x))
+      *eof-object*)))
 
 (defun eval (x)
   (let ((*free-vars* nil))
@@ -238,6 +270,19 @@
                                     ,cx))
                  #'identity)))))
 
+(defmacro zdefun (name params &rest body)
+  (let ((zt-name (ztalk-symbol name)))
+    (w/uniq (k)
+      `(progn
+         (defvar ,zt-name)
+         (setq ,zt-name (lambda ,(cons k params)
+                          (funcall ,k (progn ,@body))))))))
+
+(zdefun cons (a b) (cons a b))
+(zdefun car (p) (car p))
+(zdefun cdr (p) (cdr p))
+(zdefun list (&rest xs) xs)
+
 (defun prompt ()
   (princ "ztalk> ")
   (finish-output))
@@ -245,7 +290,7 @@
 (defun repl ()
   (prompt)
   (let ((x (read)))
-    (unless (eof-object? x)
+    (unless (eof-object-p x)
       (format t "Read:  ~S~%"  x)
       (format t "~S~%" (eval x))
       (repl))))
