@@ -147,7 +147,7 @@
                              (compile (car x) env
                                `(lambda (,r)
                                   (if ,r
-                                      ,(compile k (cadr x) env)
+                                      ,(compile (cadr x) env k)
                                       ,(compile-if (cddr x) env k))))))))
       
 (defun compile-body (k x env)
@@ -270,18 +270,26 @@
                                     ,cx))
                  #'identity)))))
 
-(defmacro zdefun (name params &rest body)
+(defmacro zdef (name exp)
   (let ((zt-name (ztalk-symbol name)))
-    (w/uniq (k)
-      `(progn
-         (defvar ,zt-name)
-         (setq ,zt-name (lambda ,(cons k params)
-                          (funcall ,k (progn ,@body))))))))
+    `(progn
+       (defvar ,zt-name)
+       (setq ,zt-name ,exp))))
 
+(defmacro zdefun (name params &rest body)
+  (w/uniq (k)
+    `(zdef ,name (lambda ,(cons k params)
+                   (funcall ,k (progn ,@body))))))
+
+(zdef f (lambda (k x) (funcall k x)))
+(zdef call/cc (lambda (k f) (funcall f k (lambda (k2 k3) (funcall k k3)))))
 (zdefun cons (a b) (cons a b))
 (zdefun car (p) (car p))
 (zdefun cdr (p) (cdr p))
 (zdefun list (&rest xs) xs)
+(zdefun = (a b) (= a b))
+(zdefun < (a b) (< a b))
+(zdefun > (a b) (> a b))
 
 (defun prompt ()
   (princ "ztalk> ")
