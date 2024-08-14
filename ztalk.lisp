@@ -79,7 +79,7 @@
   x)
 
 (defun litsymp (x)
-   (and (symbolp x) (member x '(|lk|::|true| |lk|::|false| |lk|::|nil|))))
+  (and (symbolp x) (member x '(|lk|::|true| |lk|::|false| |lk|::|nil|))))
 
 (defun literalp (x)
   (or (characterp x)
@@ -282,9 +282,10 @@
 (zexport annotate (tag x))
 (zdefun type (x) (ztalk-type x))
 (zexport rep (x))
-(zdefun symbol? (x) (and (symbolp x) (eq (symbol-package x) *ztalk-package*)))
+(zdefun symbol? (x) (and (symbolp x) (not (eq x nil)) (not (eq x t))))
 (zdefun pair? (x) (consp x))
 (zdefun is (x y) (eq x y))
+(zexport gensym ())
 
 (zdefun load (path) (ztalk-load path))
 

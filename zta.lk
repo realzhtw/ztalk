@@ -14,10 +14,37 @@
 (def (cadr x) (car (cdr x)))
 (def (cddr x) (cdr (cdr x)))
 
+(macro (rfn name params . body)
+  `((fn (,name)
+      (set ,name (fn ,params ,@body))
+      ,name)
+    nil))
+
+(def (len xs)
+  ((rfn iter (n xs)
+     (if (null? xs)
+         n
+         (iter (+ n 1) (cdr xs))))
+   0 xs))
+
+(def (reverse xs)
+  ((rfn iter (rs xs)
+     (if (null? xs)
+         rs
+         (iter (cons (car xs) rs) (cdr xs))))
+   nil xs))
+
 (def (pair xs)
-  (if (null? xs)       nil
-      (null? (cdr xs)) (list (list (car xs)))
-                       (cons (list (car xs) (cadr xs)) (pair (cddr xs)))))
+  ((rfn iter (ps xs)
+     (if (null? xs)       (reverse ps)
+         (null? (cdr xs)) (iter (cons (list (car xs)) ps) nil)
+                          (iter (cons (list (car xs) (cadr xs)) ps) (cddr xs))))
+   nil xs))
+
+(def (intersperse xs ys)
+  (if (null? xs)
+      ys
+      (cons (car xs) (intersperse ys (cdr xs)))))
 
 (def (map f xs)
   (if (null? xs)
@@ -29,9 +56,16 @@
      `((fn ,(map car paired-bindings) ,@body) ,@(map cadr paired-bindings)))
    (pair bindings)))
 
+(macro (w/uniq names . body)
+  `(let ,(intersperse names (map (fn (_) '(gensym)) names))
+     ,@body))
+
+(macro (after x . body)
+  (w/uniq (g)
+    `(let (,g ,x) ,@body ,g)))
+
 (macro (do . body)
   `((fn () ,@body)))
 
 (macro (point name . body)
   `(call/cc (fn (,name) ,@body)))
-
