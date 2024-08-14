@@ -287,6 +287,17 @@
 (zdefun is (x y) (eq x y))
 (zexport gensym ())
 
+(zdefun string? (x) (string x))
+(defun string-length (x) (declare (type string x)) (length x))
+(zexport string-length (x))
+
+(zdefun make-vector (n &optional x) (make-array n :initial-element x))
+(zdefun vector? (x) (vectorp x))
+(zdefun vector-ref (x i) (aref x i))
+(zdefun vector-set (x i v) (setf (aref x i) v))
+(defun vector-length (x) (declare (type vector x)) (length x))
+(zexport vector-length (x))
+
 (zdefun load (path) (ztalk-load path))
 
 (zexport mod (a b))

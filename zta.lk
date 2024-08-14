@@ -20,7 +20,7 @@
       ,name)
     nil))
 
-(def (len xs)
+(def (length xs)
   ((rfn iter (n xs)
      (if (null? xs)
          n
@@ -47,9 +47,11 @@
       (cons (car xs) (intersperse ys (cdr xs)))))
 
 (def (map f xs)
-  (if (null? xs)
-      nil
-      (cons (f (car xs)) (map f (cdr xs)))))
+  ((rfn iter (rs xs)
+     (if (null? xs)
+         (reverse rs)
+         (iter (cons (f (car xs)) rs) (cdr xs))))
+   nil xs))
 
 (macro (let bindings . body)
   ((fn (paired-bindings)
@@ -69,3 +71,8 @@
 
 (macro (point name . body)
   `(call/cc (fn (,name) ,@body)))
+
+(def (ref x k)
+  (if (vector? x) (vector-ref x k)
+      (string? x) (string-ref x k)))
+
