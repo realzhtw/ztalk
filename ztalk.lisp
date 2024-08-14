@@ -40,7 +40,7 @@
 
 ; reader
 
-(defvar *ztalk-package* (make-package "zt"))
+(defvar *ztalk-package* (make-package "lk"))
 
 (defun skip-space ()
   (peek-char t nil nil)
@@ -64,25 +64,8 @@
     (awhile (read-sym-char)
       (write-char it s))))
 
-(declaim (ftype (function () t) zt-read))
-
-(defun read-cdr ()
-  (let ((c (peek-char t)))
-    (if (char= c #\))
-      nil
-      (cons (zt-read) (read-cdr)))))
-
-(defun read-list ()
-  (read-char)
-  (after
-    (read-cdr)
-    (read-char)))
-
-(defun zt-read ()
-  (let ((c (peek-char t nil nil)))
-    (if (char= c #\()
-      (read-list)
-      (read-atom))))
+(declaim (ftype (function () t) ztalk-read))
+(declaim (ftype (function (t) t) ztalk-load))
 
 (defvar *free-vars*)
 
@@ -96,7 +79,7 @@
   x)
 
 (defun litsymp (x)
-   (and (symbolp x) (member x '(|zt|::|true| |zt|::|false| |zt|::|nil|))))
+   (and (symbolp x) (member x '(|lk|::|true| |lk|::|false| |lk|::|nil|))))
 
 (defun literalp (x)
   (or (characterp x)
@@ -118,9 +101,9 @@
   (emit-funcall k x))
 
 (defun zt-to-cl-literal (x)
-  (case x (|zt|::|true|  t)
-          (|zt|::|false| nil)
-          (|zt|::|nil|   nil)
+  (case x (|lk|::|true|  t)
+          (|lk|::|false| nil)
+          (|lk|::|nil|   nil)
           (otherwise  x)))
           
 (defun compile-literal (x k)
@@ -166,11 +149,21 @@
                                ,(compile-body k (cdr x) env)))))))
 
 
+(defun compile-params (x)
+  (cond ((null x)    nil)
+        ((symbolp x) (list '&rest x))
+        ((consp x)   (cons (car x) (compile-params (cdr x))))))
+
+(defun param-names (x)
+  (cond ((null x) nil)
+        ((symbolp x) (list x))
+        ((consp x)   (cons (car x) (param-names (cdr x))))))
+
 (defun compile-fn (exp env k)
   (destructuring-bind (params &rest body) exp
     (w/uniq (k2)
-      `(funcall ,k (lambda (,k2 ,@params)
-                     ,(compile-body k2 body (append params env)))))))
+      `(funcall ,k (lambda (,k2 ,@(compile-params params))
+                     ,(compile-body k2 body (append (param-names params) env)))))))
 
 (defun compile-many (xs rs env k)
   (cond ((null xs)            (apply #'emit-funcall (cons k (reverse rs))))
@@ -192,11 +185,11 @@
 (defun expand-qquote (x level)
   ;(format t "expand-qquote: ~S (level = ~S)~%" x level)
   (cond ((= level 0) x)
-        ((atom x)                    `(|zt|::|quote| ,x))
-        ((car-is x '|zt|::|unquote|) (if (= level 1)
+        ((atom x)                    `(|lk|::|quote| ,x))
+        ((car-is x '|lk|::|unquote|) (if (= level 1)
                                          (cadr x)
                                          (expand-qquoted-list x (- level 1))))
-        ((car-is x '|zt|::|qquote|)  `(|zt|::|qquote| ,(expand-qquote (cadr x) (+ level 1))))
+        ((car-is x '|lk|::|qquote|)  `(|lk|::|qquote| ,(expand-qquote (cadr x) (+ level 1))))
         (t                           (expand-qquoted-list x level))))
 
 ; TODO:
@@ -205,12 +198,12 @@
 (defun expand-qquoted-list (xs level)
   ;(format t "expand-qquoted-list: ~S (level = ~S)~%" xs level)
   (if (null xs)
-    '|zt|::|nil|
+    '|lk|::|nil|
     (let ((x (car xs)))
-      (if (car-is x '|zt|::|unquote-splicing|)
-        `(|zt|::|append| ,(expand-qquote (cadr x) (- level 1))
+      (if (car-is x '|lk|::|unquote-splicing|)
+        `(|lk|::|append| ,(expand-qquote (cadr x) (- level 1))
                          ,(expand-qquoted-list (cdr xs) level))
-        `(|zt|::|cons| ,(expand-qquote x level)
+        `(|lk|::|cons| ,(expand-qquote x level)
                        ,(expand-qquoted-list (cdr xs) level))))))
 
 (defun compile-qquote (x env k)
@@ -219,11 +212,11 @@
     (finish-output)
     (compile ex-x env k)))
 
-(defstruct tagged value tag)
+(defstruct tagged tag value)
 
-(defun z-annotate (value tag) (make-tagged :value value :tag tag))
+(defun annotate (tag x) (make-tagged :tag tag :value x))
 
-(defun z-type (x)
+(defun ztalk-type (x)
   (cond ((tagged-p x)   (tagged-tag x))
         ((consp x)      'cons)
         ((symbolp x)    'sym)
@@ -234,27 +227,32 @@
         ((floatp x)     'float)
         (t              (error (format nil "Unknown type: ~S" x)))))
 
-(defun z-rep (x)
+(defun rep (x)
   (if (tagged-p x)
       (tagged-value x)
       x))
 
-(defun macrop (fn)
-  (and (symbolp fn)
-       (boundp fn)
-       (let ((v (symbol-value fn)))
-         (and (tagged-p v)
-              (eq (z-type v) 'mac)))))
+(defun macrop (x)
+  ;(format t "macrop: ~S~%" x)
+  (and (consp x)
+       (symbolp (car x))
+       (boundp (car x))
+       (eq (ztalk-type (symbol-value (car x))) '|lk|::|macro|)))
+
+(defun ztalk-macroexpand (x)
+  (let ((m (rep (symbol-value (car x)))))
+    ;(format t "macro: ~S~%" m)
+    (apply m (cons #'identity (cdr x)))))
 
 (defun compile (x env k)
   (cond ((literalp x)                (compile-literal x k))
         ((symbolp x)                 (compile-var x env k))
-        ((car-is x '|zt|::|set|)     (compile-set (cdr x) env k))
-        ((car-is x '|zt|::|if|)      (compile-if (cdr x) env k))
-        ((car-is x '|zt|::|fn|)      (compile-fn (cdr x) env k))
-        ((car-is x '|zt|::|quote|)   (emit-funcall k `(quote ,(cadr x))))
-        ((car-is x '|zt|::|qquote|)  (compile-qquote (cadr x) env k))
-        ;((car-is x '|zt|::|unquote|) (compile-unquote (cadr x) env 1 k))
+        ((car-is x '|lk|::|set|)     (compile-set (cdr x) env k))
+        ((car-is x '|lk|::|if|)      (compile-if (cdr x) env k))
+        ((car-is x '|lk|::|fn|)      (compile-fn (cdr x) env k))
+        ((car-is x '|lk|::|quote|)   (emit-funcall k `(quote ,(cadr x))))
+        ((car-is x '|lk|::|qquote|)  (compile-qquote (cadr x) env k))
+        ((macrop x)                  (compile (ztalk-macroexpand x) env k))
         ((consp x)                   (compile-call x env k))
         (t                           (error (format t "Can't compile ~S" x)))))
 
@@ -268,7 +266,7 @@
 
 (defmacro zdefun (name params &rest body)
   (w/uniq (k)
-    `(zdef ,name (lambda ,(cons k params)
+    `(zdef ,name (lambda (,k ,@params)
                    (funcall ,k (progn ,@body))))))
 
 (defmacro zexport (name params)
@@ -281,11 +279,19 @@
                  (declare (ignore k2))
                  (funcall k k3)))))
 
+(zexport annotate (tag x))
+(zdefun type (x) (ztalk-type x))
+(zexport rep (x))
+(zdefun symbol? (x) (and (symbolp x) (eq (symbol-package x) *ztalk-package*)))
+(zdefun pair? (x) (consp x))
+(zdefun is (x y) (eq x y))
+
+(zdefun load (path) (ztalk-load path))
+
 (zexport mod (a b))
 (zexport cons (a b))
 (zexport car (p))
 (zexport cdr (p))
-(zexport list (&rest xs))
 (zexport = (a b))
 (zexport < (a b))
 (zexport > (a b))
@@ -297,11 +303,11 @@
 (defvar *case-sensitive-readtable*)
 
 (defun ztalk-read-quoted (s c)
-  (cond ((eq c #\') (list '|zt|::|quote| (read s t nil t)))
-        ((eq c #\`) (list '|zt|::|qquote| (read s t nil t)))
+  (cond ((eq c #\') (list '|lk|::|quote| (read s t nil t)))
+        ((eq c #\`) (list '|lk|::|qquote| (read s t nil t)))
         ((eq c #\,) (if (read-char-if #\@ s)
-                        (list '|zt|::|unquote-splicing| (read s t nil t))
-                        (list '|zt|::|unquote| (read s t nil t))))))
+                        (list '|lk|::|unquote-splicing| (read s t nil t))
+                        (list '|lk|::|unquote| (read s t nil t))))))
    
 (defvar *ztalk-readtable*
   (let ((rt (copy-readtable nil)))
@@ -326,8 +332,13 @@
                                     ,cx))
                  #'identity)))))
 
+(defun ztalk-load (path)
+  (with-open-file (*standard-input* path)
+    (while (peek-char t nil nil)
+      (ztalk-eval (ztalk-read)))))
+
 (defun prompt ()
-  (princ "ztalk> ")
+  (princ "lk> ")
   (finish-output))
 
 (defun ztalk-repl ()
@@ -337,5 +348,7 @@
     (let ((x (ztalk-read)))
       ;(format t "Read:  ~S~%"  x)
       (format t "~S~%" (ztalk-eval x)))))
+
+(ztalk-load "zta.lk")
 
 (ztalk-repl)

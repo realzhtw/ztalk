@@ -1,3 +1,7 @@
 Z-talk is a modern programming language
 
 This is a Common Lisp implementation of Z-talk.
+
+How to run:
+
+$ sbcl --script ztalk.lisp

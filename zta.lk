@@ -1,0 +1,37 @@
+(set list (fn xs xs))
+
+(set macro
+  (annotate 'macro (fn (sig . body)
+                     `(set ,(car sig)
+                           (annotate 'macro (fn ,(cdr sig) ,@body))))))
+
+(macro (def sig . body)
+  (if (symbol? sig)
+      `(set ,sig ,@body)
+      `(set ,(car sig) (fn ,(cdr sig) ,@body))))
+
+(def (null? x) (is x nil))
+(def (cadr x) (car (cdr x)))
+(def (cddr x) (cdr (cdr x)))
+
+(def (pair xs)
+  (if (null? xs)       nil
+      (null? (cdr xs)) (list (list (car xs)))
+                       (cons (list (car xs) (cadr xs)) (pair (cddr xs)))))
+
+(def (map f xs)
+  (if (null? xs)
+      nil
+      (cons (f (car xs)) (map f (cdr xs)))))
+
+(macro (let bindings . body)
+  ((fn (paired-bindings)
+     `((fn ,(map car paired-bindings) ,@body) ,@(map cadr paired-bindings)))
+   (pair bindings)))
+
+(macro (do . body)
+  `((fn () ,@body)))
+
+(macro (point name . body)
+  `(call/cc (fn (,name) ,@body)))
+
