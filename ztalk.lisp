@@ -287,16 +287,29 @@
 (zdefun is (x y) (eq x y))
 (zexport gensym ())
 
-(zdefun string? (x) (string x))
+(zdefun string? (x) (stringp x))
+(zdefun string-ref (x i) (aref x i))
 (defun string-length (x) (declare (type string x)) (length x))
 (zexport string-length (x))
+(defun substring (x i j) (declare (type string x)) (subseq x i j))
+(zexport substring (x i j))
+
+(zdefun make-adjustable-string (&optional (n 0))
+  (make-array n :element-type 'character
+                :fill-pointer 0))
+(zdefun string-push-back (x c) (vector-push-extend c x) x)
 
 (zdefun make-vector (n &optional x) (make-array n :initial-element x))
 (zdefun vector? (x) (vectorp x))
 (zdefun vector-ref (x i) (aref x i))
 (zdefun vector-set (x i v) (setf (aref x i) v))
-(defun vector-length (x) (declare (type vector x)) (length x))
-(zexport vector-length (x))
+(defun vector-size (x) (declare (type vector x)) (length x))
+(zexport vector-size (x))
+
+(zdefun make-adjustable-vector (&optional (n 0))
+  (make-array n :fill-pointer 0))
+(zdefun vector-push-back (x value) (vector-push-extend value x) x)
+(zdefun vector-capacity (x) (array-total-size x))
 
 (zdefun load (path) (ztalk-load path))
 
@@ -308,8 +321,18 @@
 (zexport < (a b))
 (zexport > (a b))
 
-(dolist (f '(+ - * / append))
+(dolist (f '(+ - * / append vector))
   (eval `(zexport ,f (&rest xs))))
+
+;(zdef stdin *standard-input*)
+;(zdef stdout *standard-output*)
+;(zdef stderr *error-output*)
+
+(zdefun peek-char () (peek-char nil nil nil))
+(zdefun read-char () (read-char nil nil nil))
+(zdefun write-char (c) (write-char c))
+(zdefun print (&rest args) (dolist (x args) (princ x)))
+(zdefun println (&rest args) (dolist (x args) (princ x)) (print ""))
 
 ; ztalk-reader
 (defvar *case-sensitive-readtable*)

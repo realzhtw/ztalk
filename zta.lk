@@ -1,9 +1,10 @@
 (set list (fn xs xs))
 
 (set macro
-  (annotate 'macro (fn (sig . body)
-                     `(set ,(car sig)
-                           (annotate 'macro (fn ,(cdr sig) ,@body))))))
+  (annotate 'macro
+            (fn (sig . body)
+              `(set ,(car sig)
+                    (annotate 'macro (fn ,(cdr sig) ,@body))))))
 
 (macro (def sig . body)
   (if (symbol? sig)
@@ -14,28 +15,32 @@
 (def (cadr x) (car (cdr x)))
 (def (cddr x) (cdr (cdr x)))
 
-(macro (rfn name params . body)
-  `((fn (,name)
-      (set ,name (fn ,params ,@body))
-      ,name)
-    nil))
+(def (not x) (null? x))
 
-(def (length xs)
-  ((rfn iter (n xs)
+(macro (rfn sig . body)
+  ((fn (name params)
+     `((fn (,name)
+         (set ,name (fn ,params ,@body))
+         ,name)
+       nil))
+   (car sig) (cdr sig)))
+
+(def (string-length xs)
+  ((rfn (iter n xs)
      (if (null? xs)
          n
          (iter (+ n 1) (cdr xs))))
    0 xs))
 
 (def (reverse xs)
-  ((rfn iter (rs xs)
+  ((rfn (iter rs xs)
      (if (null? xs)
          rs
          (iter (cons (car xs) rs) (cdr xs))))
    nil xs))
 
 (def (pair xs)
-  ((rfn iter (ps xs)
+  ((rfn (iter ps xs)
      (if (null? xs)       (reverse ps)
          (null? (cdr xs)) (iter (cons (list (car xs)) ps) nil)
                           (iter (cons (list (car xs) (cadr xs)) ps) (cddr xs))))
@@ -47,7 +52,7 @@
       (cons (car xs) (intersperse ys (cdr xs)))))
 
 (def (map f xs)
-  ((rfn iter (rs xs)
+  ((rfn (iter rs xs)
      (if (null? xs)
          (reverse rs)
          (iter (cons (f (car xs)) rs) (cdr xs))))
@@ -69,6 +74,12 @@
 (macro (do . body)
   `((fn () ,@body)))
 
+(macro (when cnd . body)
+  `(if ,cnd (do ,@body)))
+
+(macro (unless cnd . body)
+  `(if (not ,cnd) (do ,@body)))
+
 (macro (point name . body)
   `(call/cc (fn (,name) ,@body)))
 
@@ -76,3 +87,47 @@
   (if (vector? x) (vector-ref x k)
       (string? x) (string-ref x k)))
 
+(def (length x)
+  (if (vector? x) (vector-size x)
+      (string? x) (string-length x)))
+
+(def (push-back x value)
+  (if (vector? x) (vector-push-back x value)
+      (string? x) (string-push-back x value)))
+
+(def (list-for-each x f)
+  (unless (null? x)
+    (f (car x))
+    (list-for-each (cdr x) f)))
+
+(def (string-for-each x f)
+  ((rfn (iter i)
+     (when (< i (string-length x))
+       (f (string-ref x i))
+       (iter (+ i 1))))
+   0))
+
+(def (vector-for-each x f)
+  ((rfn (iter i)
+     (when (< i (vector-size x))
+       (f (vector-ref x i))
+       (iter (+ i 1))))
+   0))
+
+(def (for-each x f)
+  (if (vector? x) (vector-for-each x f)
+      (string? x) (string-for-each x f)
+      (pair? x)   (list-for-each x f)))
+
+(macro (for x xs . body)
+  `(for-each ,xs (fn (,x) ,@body)))
+
+(def (split-string s c)
+  (let (r (make-adjustable-vector))
+    ((rfn (iter i j)
+            (if (= j (length s)) (vector-push-back r (substring s i j))
+                (is (ref s j) c) (do
+                                   (vector-push-back r (substring s i j))
+                                   (iter (+ j 1) (+ j 1)))
+                                 (iter i (+ j 1))))
+     0 0)))
