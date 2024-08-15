@@ -11,11 +11,12 @@
       `(set ,sig ,@body)
       `(set ,(car sig) (fn ,(cdr sig) ,@body))))
 
-(def (null? x) (is x nil))
 (def (cadr x) (car (cdr x)))
 (def (cddr x) (cdr (cdr x)))
 
-(def (not x) (null? x))
+(def (null? x) (is x nil))
+(def (not x) (is x nil))
+(def (no x) (is x nil))
 
 (macro (rfn sig . body)
   ((fn (name params)
@@ -25,7 +26,7 @@
        nil))
    (car sig) (cdr sig)))
 
-(def (string-length xs)
+(def (list-length xs)
   ((rfn (iter n xs)
      (if (null? xs)
          n
@@ -67,6 +68,23 @@
   `(let ,(intersperse names (map (fn (_) '(gensym)) names))
      ,@body))
 
+(macro (and . args)
+  (if (null? args)       'true
+      (null? (cdr args)) (car args)
+                         `(if ,(car args) (and ,@(cdr args)))))
+
+; BUG in macro expansion: adding ,@(cdr args) triggers (declare (special nil))
+(macro (or . args)
+  (if (null? args)
+      'false
+      (w/uniq (g)
+        `(let (,g ,(car args))
+           (if ,g ,g ,@(cdr args))))))
+
+(macro (aand x . args)
+  `(let (it ,x)
+     (and it ,@args)))
+
 (macro (after x . body)
   (w/uniq (g)
     `(let (,g ,x) ,@body ,g)))
@@ -80,6 +98,13 @@
 (macro (unless cnd . body)
   `(if (not ,cnd) (do ,@body)))
 
+(macro (while cnd . body)
+  (w/uniq (g)
+    `((rfn (,g)
+        (when ,cnd
+          ,@body
+          (,g))))))
+
 (macro (point name . body)
   `(call/cc (fn (,name) ,@body)))
 
@@ -87,9 +112,14 @@
   (if (vector? x) (vector-ref x k)
       (string? x) (string-ref x k)))
 
+(def (list? x)
+  (or (pair? x)
+      (null? x)))
+
 (def (length x)
   (if (vector? x) (vector-size x)
-      (string? x) (string-length x)))
+      (string? x) (string-length x)
+      (list? x)   (list-length x)))
 
 (def (push-back x value)
   (if (vector? x) (vector-push-back x value)
@@ -117,7 +147,7 @@
 (def (for-each x f)
   (if (vector? x) (vector-for-each x f)
       (string? x) (string-for-each x f)
-      (pair? x)   (list-for-each x f)))
+      (list? x)   (list-for-each x f)))
 
 (macro (for x xs . body)
   `(for-each ,xs (fn (,x) ,@body)))
@@ -131,3 +161,16 @@
                                    (iter (+ j 1) (+ j 1)))
                                  (iter i (+ j 1))))
      0 0)))
+
+(def (whitespace c)
+  (or (is c #\space)
+      (is c #\tab)
+      (is c #\newline)
+      (is c #\return)))
+
+(def (read-line)
+  (when (peek-char)
+    (let (r (make-adjustable-string))
+      (while (aand (peek-char) (not (is it #\newline)))
+        (push-back r (read-char)))
+      r)))

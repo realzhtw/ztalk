@@ -288,7 +288,8 @@
 (zexport gensym ())
 
 (zdefun string? (x) (stringp x))
-(zdefun string-ref (x i) (aref x i))
+(defun ztalk-string-ref (x i) (declare (type string x)) (aref x i))
+(zdefun string-ref (x i) (ztalk-string-ref x i))
 (defun string-length (x) (declare (type string x)) (length x))
 (zexport string-length (x))
 (defun substring (x i j) (declare (type string x)) (subseq x i j))
@@ -332,7 +333,7 @@
 (zdefun read-char () (read-char nil nil nil))
 (zdefun write-char (c) (write-char c))
 (zdefun print (&rest args) (dolist (x args) (princ x)))
-(zdefun println (&rest args) (dolist (x args) (princ x)) (print ""))
+(zdefun println (&rest args) (dolist (x args) (princ x)) (terpri) nil)
 
 ; ztalk-reader
 (defvar *case-sensitive-readtable*)
