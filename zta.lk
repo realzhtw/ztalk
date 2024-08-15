@@ -26,25 +26,28 @@
        nil))
    (car sig) (cdr sig)))
 
+(macro (afn params . body)
+  `(rfn (self ,@params) ,@body))
+
 (def (list-length xs)
-  ((rfn (iter n xs)
+  ((afn (n xs)
      (if (null? xs)
          n
-         (iter (+ n 1) (cdr xs))))
+         (self (+ n 1) (cdr xs))))
    0 xs))
 
 (def (reverse xs)
-  ((rfn (iter rs xs)
+  ((afn (rs xs)
      (if (null? xs)
          rs
-         (iter (cons (car xs) rs) (cdr xs))))
+         (self (cons (car xs) rs) (cdr xs))))
    nil xs))
 
 (def (pair xs)
-  ((rfn (iter ps xs)
+  ((afn (ps xs)
      (if (null? xs)       (reverse ps)
-         (null? (cdr xs)) (iter (cons (list (car xs)) ps) nil)
-                          (iter (cons (list (car xs) (cadr xs)) ps) (cddr xs))))
+         (null? (cdr xs)) (self (cons (list (car xs)) ps) nil)
+                          (self (cons (list (car xs) (cadr xs)) ps) (cddr xs))))
    nil xs))
 
 (def (intersperse xs ys)
@@ -53,10 +56,10 @@
       (cons (car xs) (intersperse ys (cdr xs)))))
 
 (def (map f xs)
-  ((rfn (iter rs xs)
+  ((afn (rs xs)
      (if (null? xs)
          (reverse rs)
-         (iter (cons (f (car xs)) rs) (cdr xs))))
+         (self (cons (f (car xs)) rs) (cdr xs))))
    nil xs))
 
 (macro (let bindings . body)
@@ -131,17 +134,17 @@
     (list-for-each (cdr x) f)))
 
 (def (string-for-each x f)
-  ((rfn (iter i)
+  ((afn (i)
      (when (< i (string-length x))
        (f (string-ref x i))
-       (iter (+ i 1))))
+       (self (+ i 1))))
    0))
 
 (def (vector-for-each x f)
-  ((rfn (iter i)
+  ((afn (i)
      (when (< i (vector-size x))
        (f (vector-ref x i))
-       (iter (+ i 1))))
+       (self (+ i 1))))
    0))
 
 (def (for-each x f)
@@ -154,12 +157,12 @@
 
 (def (split-string s c)
   (let (r (make-adjustable-vector))
-    ((rfn (iter i j)
+    ((afn (i j)
             (if (= j (length s)) (vector-push-back r (substring s i j))
                 (is (ref s j) c) (do
                                    (vector-push-back r (substring s i j))
-                                   (iter (+ j 1) (+ j 1)))
-                                 (iter i (+ j 1))))
+                                   (self (+ j 1) (+ j 1)))
+                                 (self i (+ j 1))))
      0 0)))
 
 (def (whitespace c)
