@@ -189,6 +189,11 @@
 (macro (for x xs . body)
   `(for-each ,xs (fn (,x) ,@body)))
 
+(def (append x . xs)
+  (if (string? x) (apply string-append (cons x xs))
+      (list? x)   (apply list-append (cons x xs))
+      (vector? x) (apply vector-append (cons x xs))))
+
 (def (split-string s c)
   (let (r (make-adjustable-vector))
     ((afn (i j)

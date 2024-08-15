@@ -201,8 +201,8 @@
     '|lk|::|nil|
     (let ((x (car xs)))
       (if (car-is x '|lk|::|unquote-splicing|)
-        `(|lk|::|append| ,(expand-qquote (cadr x) (- level 1))
-                         ,(expand-qquoted-list (cdr xs) level))
+        `(|lk|::|list-append| ,(expand-qquote (cadr x) (- level 1))
+                              ,(expand-qquoted-list (cdr xs) level))
         `(|lk|::|cons| ,(expand-qquote x level)
                        ,(expand-qquoted-list (cdr xs) level))))))
 
@@ -279,6 +279,9 @@
                  (declare (ignore k2))
                  (funcall k k3)))))
 
+(zdef apply (lambda (k f args)
+  (apply f (cons k args))))
+
 (zexport annotate (tag x))
 (zdefun type (x) (ztalk-type x))
 (zexport rep (x))
@@ -325,8 +328,11 @@
 (zexport = (a b))
 (zexport < (a b))
 (zexport > (a b))
+(zdefun list-append (&rest xs) (apply #'append xs))
+(zdefun string-append (&rest xs) (apply #'concatenate (cons 'string xs)))
+(zdefun vector-append (&rest xs) (apply #'concatenate (cons 'vector xs)))
 
-(dolist (f '(+ - * / append vector))
+(dolist (f '(+ - * / vector))
   (eval `(zexport ,f (&rest xs))))
 
 ;(zdef argv sb-ext:*posix-argv*)
