@@ -147,10 +147,44 @@
        (self (+ i 1))))
    0))
 
+(def (is-a x y) (is (type x) y))
+
+(def (range a b) (annotate 'range (cons a b)))
+(def (range? x) (is-a x 'range))
+(def (range-from r) (car (rep r)))
+(def (range-to r)   (cdr (rep r)))
+
+(def (range-for-each x f)
+  ((afn (i)
+     (when (< i (range-to x))
+       (f i)
+       (self (+ i 1))))
+   (range-from x)))
+
+(def (scons a b) (annotate 'scons (cons a b)))
+
+(macro (seq hd tl)
+  `(scons ,hd (fn () ,tl)))
+
+(def (seq? x) (or (is-a x 'cons) (null? x)))
+(def (seq-hd s) (car (rep s)))
+(def (seq-tl s)
+  (let (r (rep s))
+    (when (fn? (cdr r))
+      (set-cdr r ((cdr r))))
+    (cdr r)))
+
+(def (seq-foreach s f)
+  (unless (null? s)
+    (f (seq-hd s))
+    (seq-for-each (seq-tl s) f)))
+
 (def (for-each x f)
   (if (vector? x) (vector-for-each x f)
       (string? x) (string-for-each x f)
-      (list? x)   (list-for-each x f)))
+      (list? x)   (list-for-each x f)
+      (range? x)  (range-for-each x f)
+      (seq? x)    (seq-for-each x f)))
 
 (macro (for x xs . body)
   `(for-each ,xs (fn (,x) ,@body)))

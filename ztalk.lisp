@@ -137,16 +137,16 @@
                                       ,(compile (cadr x) env k)
                                       ,(compile-if (cddr x) env k))))))))
       
-(defun compile-body (k x env)
+(defun compile-body (x env k)
   (cond ((null x)       (emit-funcall k nil))
         ((null (cdr x)) (compile (car x) env k))
         ((atom (car x)) `(progn ,(car x)
-                                ,(compile-body k (cdr x) env)))
+                                ,(compile-body (cdr x) env k)))
         (t              (w/uniq (r)
                           (compile (car x) env
                             `(lambda (,r)
                                (declare (ignore ,r))
-                               ,(compile-body k (cdr x) env)))))))
+                               ,(compile-body (cdr x) env k)))))))
 
 
 (defun compile-params (x)
@@ -163,7 +163,7 @@
   (destructuring-bind (params &rest body) exp
     (w/uniq (k2)
       `(funcall ,k (lambda (,k2 ,@(compile-params params))
-                     ,(compile-body k2 body (append (param-names params) env)))))))
+                     ,(compile-body body (append (param-names params) env) k2))))))
 
 (defun compile-many (xs rs env k)
   (cond ((null xs)            (apply #'emit-funcall (cons k (reverse rs))))
@@ -218,13 +218,13 @@
 
 (defun ztalk-type (x)
   (cond ((tagged-p x)   (tagged-tag x))
-        ((consp x)      'cons)
-        ((symbolp x)    'sym)
-        ((functionp x)  'fn)
-        ((characterp x) 'char)
-        ((stringp x)    'string)
-        ((integerp x)   'int)
-        ((floatp x)     'float)
+        ((consp x)      '|lk|::|pair|)
+        ((symbolp x)    '|lk|::|symbol|)
+        ((functionp x)  '|lk|::|fn|)
+        ((characterp x) '|lk|::|char|)
+        ((stringp x)    '|lk|::|string|)
+        ((integerp x)   '|lk|::|int|)
+        ((floatp x)     '|lk|::|float|)
         (t              (error (format nil "Unknown type: ~S" x)))))
 
 (defun rep (x)
@@ -312,12 +312,16 @@
 (zdefun vector-push-back (x value) (vector-push-extend value x) x)
 (zdefun vector-capacity (x) (array-total-size x))
 
+(zdefun fn? (x) (functionp x))
+
 (zdefun load (path) (ztalk-load path))
 
 (zexport mod (a b))
 (zexport cons (a b))
 (zexport car (p))
 (zexport cdr (p))
+(zdefun set-car (p x) (setf (car p) x))
+(zdefun set-cdr (p x) (setf (cdr p) x))
 (zexport = (a b))
 (zexport < (a b))
 (zexport > (a b))
@@ -325,6 +329,7 @@
 (dolist (f '(+ - * / append vector))
   (eval `(zexport ,f (&rest xs))))
 
+;(zdef argv sb-ext:*posix-argv*)
 ;(zdef stdin *standard-input*)
 ;(zdef stdout *standard-output*)
 ;(zdef stderr *error-output*)
