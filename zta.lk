@@ -14,6 +14,16 @@
 (def (cadr x) (car (cdr x)))
 (def (cddr x) (cdr (cdr x)))
 
+(macro (push x l)
+  `(set ,l (cons ,x ,l)))
+
+(macro (pop l)
+  (w/uniq (g)
+    `(let (g (car ,l))
+       (set ,l (cdr ,l)))))
+
+(def (isnt x y) (not (is x y)))
+
 (def (null? x) (is x nil))
 (def (not x) (is x nil))
 (def (no x) (is x nil))
@@ -66,6 +76,13 @@
   ((fn (paired-bindings)
      `((fn ,(map car paired-bindings) ,@body) ,@(map cadr paired-bindings)))
    (pair bindings)))
+
+(macro (let* bindings . body)
+  (if (null? bindings)
+      `(do ,@body)
+      `(let (,(car bindings) ,(cadr bindings))
+         (let* ,(cddr bindings)
+           ,@body))))
 
 (macro (w/uniq names . body)
   `(let ,(intersperse names (map (fn (_) '(gensym)) names))
@@ -124,6 +141,18 @@
       (string? x) (string-length x)
       (list? x)   (list-length x)))
 
+(def (reduce f x0 xs)
+  (if (null? xs)
+      x0
+      (reduce f (f x0 (car xs)) (cdr xs))))
+
+(def (best f xs)
+  (unless (null? xs)
+    (reduce (fn (a b) (if (f a b) a b)) (car xs) (cdr xs))))
+
+(def (min . xs) (best < xs))
+(def (max . xs) (best > xs))
+
 (def (push-back x value)
   (if (vector? x) (vector-push-back x value)
       (string? x) (string-push-back x value)))
@@ -166,7 +195,7 @@
 (macro (seq hd tl)
   `(scons ,hd (fn () ,tl)))
 
-(def (seq? x) (or (is-a x 'cons) (null? x)))
+(def (seq? x) (or (null? x) (is-a x 'scons)))
 (def (seq-hd s) (car (rep s)))
 (def (seq-tl s)
   (let (r (rep s))
@@ -174,7 +203,14 @@
       (set-cdr r ((cdr r))))
     (cdr r)))
 
-(def (seq-foreach s f)
+(def (seq->list s)
+  ((afn (r s)
+     (if (null? s)
+         (reverse r)
+         (self (cons (hd s) r) (tl s))))
+   nil s))
+
+(def (seq-for-each s f)
   (unless (null? s)
     (f (seq-hd s))
     (seq-for-each (seq-tl s) f)))
@@ -186,22 +222,76 @@
       (range? x)  (range-for-each x f)
       (seq? x)    (seq-for-each x f)))
 
+(def (hd s)
+  (if (pair? s)
+      (car s)
+      (seq-hd s)))
+
+(def (tl s)
+  (if (pair? s)
+      (cdr s)
+      (seq-tl s)))
+
 (macro (for x xs . body)
   `(for-each ,xs (fn (,x) ,@body)))
+
+(def (enumerate s n)
+  (if (null? s)
+      nil
+      (seq (list n (hd s)) (enumerate (tl s) (+ n 1)))))
 
 (def (append x . xs)
   (if (string? x) (apply string-append (cons x xs))
       (list? x)   (apply list-append (cons x xs))
       (vector? x) (apply vector-append (cons x xs))))
 
+(macro (accumulate-reversed acc-fn . body)
+  (w/uniq (gl)
+    `(let* (,gl nil
+            ,acc-fn (fn (x) (push x ,gl)))
+       ,@body
+       ,gl)))
+
+(macro (accumulate acc-fn . body)
+  `(reverse (accumulate-reversed ,acc-fn ,@body)))
+
+(macro (record name . fields)
+  (let* (nm (symbol-name name)
+         nf (length fields))
+    `(do
+       (def (,(symbol (append "make-" nm)) ,@fields)
+         (annotate 'record
+                   (vector (quote ,name) ,@fields)))
+       ,@(accumulate acc
+           (w/uniq (g)
+             (for x (enumerate fields 1)
+               (let (i (car x)
+                     f (cadr x))
+                 (acc `(def (,(symbol (append nm "-" (symbol-name f))) ,g)
+                         (vector-ref (rep ,g) ,i))))))))))
+
+(macro (accumulate-to-string acc-fn . body)
+  (w/uniq (gs)
+    `(let* (,gs (make-adjustable-string)
+            ,acc-fn (fn (c) (string-push-back ,gs c)))
+       ,@body
+       ,gs)))
+
+(macro (accumulate-to-vector acc-fn . body)
+  (w/uniq (gv)
+    `(let* (,gv (make-adjustable-vector)
+            ,acc-fn (fn (c) (vector-push-back ,gv c)))
+       ,@body
+       ,gv)))
+
 (def (split-string s c)
-  (let (r (make-adjustable-vector))
+  (accumulate-to-vector acc
     ((afn (i j)
-            (if (= j (length s)) (vector-push-back r (substring s i j))
-                (is (ref s j) c) (do
-                                   (vector-push-back r (substring s i j))
-                                   (self (+ j 1) (+ j 1)))
-                                 (self i (+ j 1))))
+       (if (= j (length s)) (acc (substring s i j))
+           (is (ref s j) c) (do
+                              (acc (substring s i j))
+                              (self (+ j 1) (+ j 1)))
+                            (self i (+ j 1))))
      0 0)))
 
 (def (whitespace c)
@@ -210,9 +300,17 @@
       (is c #\newline)
       (is c #\return)))
 
+(macro (while-let var test . body)
+  (w/uniq (gf gt)
+    `(let (,gt (fn () ,test))
+       ((rfn (,gf ,var)
+          (when ,var
+            ,@body
+            (,gf (,gt))))
+        (,gt)))))
+
 (def (read-line)
-  (when (peek-char)
-    (let (r (make-adjustable-string))
-      (while (aand (peek-char) (not (is it #\newline)))
-        (push-back r (read-char)))
-      r)))
+  (if (peek-char)
+    (accumulate-to-string acc
+      (while-let c (aand (read-char) (isnt it #\newline) it)
+        (acc c)))))

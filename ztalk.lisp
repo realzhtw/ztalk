@@ -286,9 +286,12 @@
 (zdefun type (x) (ztalk-type x))
 (zexport rep (x))
 (zdefun symbol? (x) (and (symbolp x) (not (eq x nil)) (not (eq x t))))
+(zexport symbol-name (s))
+(zdefun symbol (x) (intern x *ztalk-package*))
 (zdefun pair? (x) (consp x))
 (zdefun is (x y) (eq x y))
 (zexport gensym ())
+
 
 (zdefun string? (x) (stringp x))
 (defun ztalk-string-ref (x i) (declare (type string x)) (aref x i))
