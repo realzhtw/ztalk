@@ -223,6 +223,7 @@
         ((functionp x)  '|lk|::|fn|)
         ((characterp x) '|lk|::|char|)
         ((stringp x)    '|lk|::|string|)
+        ((vectorp x)    '|lk|::|vector|)
         ((integerp x)   '|lk|::|int|)
         ((floatp x)     '|lk|::|float|)
         (t              (error (format nil "Unknown type: ~S" x)))))
