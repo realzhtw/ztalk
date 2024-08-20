@@ -292,7 +292,6 @@
 (zdefun is (x y) (eq x y))
 (zexport gensym ())
 
-
 (zdefun string? (x) (stringp x))
 (defun ztalk-string-ref (x i) (declare (type string x)) (aref x i))
 (zdefun string-ref (x i) (ztalk-string-ref x i))
@@ -320,8 +319,14 @@
 
 (zdefun fn? (x) (functionp x))
 
+(zdefun make-dict () (make-hash-table))
+(zdefun dict? (x) (hash-table-p x))
+(zdefun dict-ref (d k) (gethash k d))
+(zdefun dict-set (d k v) (setf (gethash k d) v))
+
 (zdefun load (path) (ztalk-load path))
 
+(zdefun div (a b) (floor a b))
 (zexport mod (a b))
 (zexport cons (a b))
 (zexport car (p))

@@ -11,6 +11,10 @@
       `(set ,sig ,@body)
       `(set ,(car sig) (fn ,(cdr sig) ,@body))))
 
+(def (is-a x y) (is (type x) y))
+
+(def (macro? x) (is-a x 'macro))
+
 (def (cadr x) (car (cdr x)))
 (def (cddr x) (cdr (cdr x)))
 
@@ -93,7 +97,6 @@
       (null? (cdr args)) (car args)
                          `(if ,(car args) (and ,@(cdr args)))))
 
-; BUG in macro expansion: adding ,@(cdr args) triggers (declare (special nil))
 (macro (or . args)
   (if (null? args)
       'false
@@ -128,13 +131,33 @@
 (macro (point name . body)
   `(call/cc (fn (,name) ,@body)))
 
-(def (ref x k)
-  (if (vector? x) (vector-ref x k)
-      (string? x) (string-ref x k)))
-
 (def (list? x)
   (or (pair? x)
       (null? x)))
+
+(macro (defg sig)
+  (let* (name (car sig)
+         params (cdr sig)
+         vtable (symbol (append (symbol-name name) "-vtable"))
+         f (gensym))
+    `(do
+       (def ,vtable (make-dict))
+       (def (,name ,@params)
+         (let (,f (dict-ref ,vtable (type ,(car params))))
+           (,f ,@params))))))
+
+(macro (defm sig . body)
+  (let* (name (car sig)
+         params (cdr sig)
+         vtable (symbol (append (symbol-name name) "-vtable")))
+    `(dict-set ,vtable
+               (quote ,(cadr (car params)))
+               (fn ,(cons (car (car params)) (cdr params)) ,@body))))
+
+(def (ref x k)
+  (if (vector? x) (vector-ref x k)
+      (string? x) (string-ref x k)
+      (dict? x) (dict-ref x k)))
 
 (def (length x)
   (if (vector? x) (vector-size x)
@@ -175,8 +198,6 @@
        (f (vector-ref x i))
        (self (+ i 1))))
    0))
-
-(def (is-a x y) (is (type x) y))
 
 (def (range a b) (annotate 'range (cons a b)))
 (def (range? x) (is-a x 'range))
@@ -255,6 +276,8 @@
 (macro (accumulate acc-fn . body)
   `(reverse (accumulate-reversed ,acc-fn ,@body)))
 
+(def (record? x) (is-a x 'record))
+
 (macro (record name . fields)
   (let* (nm (symbol-name name)
          nf (length fields))
@@ -262,6 +285,9 @@
        (def (,(symbol (append "make-" nm)) ,@fields)
          (annotate 'record
                    (vector (quote ,name) ,@fields)))
+       (def (,(symbol (append nm "?")) x)
+         (and (record? x)
+              (is (vector-ref (rep x) 0) (quote ,name))))
        ,@(accumulate acc
            (w/uniq (g)
              (for x (enumerate fields 1)
