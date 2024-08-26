@@ -150,9 +150,10 @@
 
 
 (defun compile-params (x)
-  (cond ((null x)    nil)
-        ((symbolp x) (list '&rest x))
-        ((consp x)   (cons (car x) (compile-params (cdr x))))))
+  (cond ((null x)                 nil)
+        ((symbolp x)              (list '&rest x))
+        ((car-is x '|lk|::|&opt|) (cons '&optional (compile-params (cdr x))))
+        ((consp x)                (cons (car x) (compile-params (cdr x))))))
 
 (defun param-names (x)
   (cond ((null x) nil)
@@ -216,6 +217,8 @@
 
 (defun annotate (tag x) (make-tagged :tag tag :value x))
 
+(defun filep (x) (and (streamp x) (subtypep (type-of x) 'file-stream)))
+
 (defun ztalk-type (x)
   (cond ((tagged-p x)   (tagged-tag x))
         ((consp x)      '|lk|::|pair|)
@@ -226,6 +229,7 @@
         ((vectorp x)    '|lk|::|vector|)
         ((integerp x)   '|lk|::|int|)
         ((floatp x)     '|lk|::|float|)
+        ((filep x)      '|lk|::|file|)
         (t              (error (format nil "Unknown type: ~S" x)))))
 
 (defun rep (x)
@@ -345,13 +349,18 @@
   (eval `(zexport ,f (&rest xs))))
 
 ;(zdef argv sb-ext:*posix-argv*)
-;(zdef stdin *standard-input*)
-;(zdef stdout *standard-output*)
-;(zdef stderr *error-output*)
+(zdef stdin *standard-input*)
+(zdef stdout *standard-output*)
+(zdef stderr *error-output*)
 
-(zdefun peek-char () (peek-char nil nil nil))
-(zdefun read-char () (read-char nil nil nil))
-(zdefun write-char (c) (write-char c))
+(zdefun open-input-file (path) (ignore-errors (open path :direction :input)))
+(zdefun open-output-file (path) (ignore-errors (open path :direction :output)))
+(zdefun close-file (f) (ignore-errors (close f)))
+(zdefun file? (x) (filep x))
+
+(zdefun peek-char (&optional s) (peek-char nil s nil))
+(zdefun read-char (&optional s) (read-char s nil nil))
+(zdefun write-char (c &optional s) (write-char c s))
 (zdefun print (&rest args) (dolist (x args) (princ x)))
 (zdefun println (&rest args) (dolist (x args) (princ x)) (terpri) nil)
 

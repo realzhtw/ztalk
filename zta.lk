@@ -335,8 +335,8 @@
             (,gf (,gt))))
         (,gt)))))
 
-(def (read-line)
-  (if (peek-char)
+(def (read-line &opt f)
+  (if (peek-char f)
     (accumulate-to-string acc
-      (while-let c (aand (read-char) (isnt it #\newline) it)
+      (while-let c (aand (read-char f) (isnt it #\newline) it)
         (acc c)))))
