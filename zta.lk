@@ -102,7 +102,7 @@
       'false
       (w/uniq (g)
         `(let (,g ,(car args))
-           (if ,g ,g ,@(cdr args))))))
+           (if ,g ,g (or ,@(cdr args)))))))
 
 (macro (aand x . args)
   `(let (it ,x)
@@ -127,6 +127,15 @@
         (when ,cnd
           ,@body
           (,g))))))
+
+(macro (whiler var expr cnd . body)
+  (w/uniq (iter)
+    `((rfn (,iter)
+        (let (,var ,expr)
+          (if ,cnd
+            (do ,@body
+                (,iter))
+            ,var))))))
 
 (macro (point name . body)
   `(call/cc (fn (,name) ,@body)))
@@ -175,6 +184,8 @@
 
 (def (min . xs) (best < xs))
 (def (max . xs) (best > xs))
+
+(def (neg f) (fn (x) (not (f x))))
 
 (def (push-back x value)
   (if (vector? x) (vector-push-back x value)
@@ -320,23 +331,43 @@
                             (self i (+ j 1))))
      0 0)))
 
+(macro (in x . xs)
+  (w/uniq (g)
+    `(let (,g ,x)
+       (or ,@(map (fn (x) `(is ,g ,x)) xs)))))
+
 (def (whitespace c)
   (or (is c #\space)
       (is c #\tab)
       (is c #\newline)
       (is c #\return)))
 
-(macro (while-let var test . body)
-  (w/uniq (gf gt)
-    `(let (,gt (fn () ,test))
-       ((rfn (,gf ,var)
-          (when ,var
-            ,@body
-            (,gf (,gt))))
-        (,gt)))))
+(macro (case-let var expr . args)
+  (let (ex (afn (args)
+             (if (null? (cdr args))
+                 (car args)
+                 `(if (is ,var (quote ,(car args)))
+                      ,(cadr args)
+                      ,(self (cddr args))))))
+    `(let (,var ,expr) ,(ex args))))
 
-(def (read-line &opt f)
-  (if (peek-char f)
+(macro (case expr . args)
+  (w/uniq (g)
+    `(case-let ,g ,expr ,@args)))
+
+(def (skip-space &opt s)
+  (whiler c (peek-char s) (whitespace c)
+    (read-char s)))
+
+(def (read &opt s)
+  (skip-space s)
+  (case (peek-char s)
+    #\[ (do (read-char) (cons 'vector (read-delimited-list #\] s)))
+    #\( (do (read-char) (read-delimited-list #\) s))
+        (cl-read s)))
+
+(def (read-line &opt s)
+  (if (peek-char s)
     (accumulate-to-string acc
-      (while-let c (aand (read-char f) (isnt it #\newline) it)
+      (whiler c (read-char s) (not (in c nil #\newline))
         (acc c)))))

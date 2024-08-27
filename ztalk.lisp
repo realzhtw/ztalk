@@ -358,6 +358,8 @@
 (zdefun close-file (f) (ignore-errors (close f)))
 (zdefun file? (x) (filep x))
 
+(zdefun cl-read (&optional s) (read s))
+
 (zdefun peek-char (&optional s) (peek-char nil s nil))
 (zdefun read-char (&optional s) (read-char s nil nil))
 (zdefun write-char (c &optional s) (write-char c s))
