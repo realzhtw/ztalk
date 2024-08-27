@@ -165,11 +165,13 @@
 
 (def (ref x k)
   (if (vector? x) (vector-ref x k)
+      (bytes? x)  (bytes-ref x k)
       (string? x) (string-ref x k)
       (dict? x) (dict-ref x k)))
 
 (def (length x)
   (if (vector? x) (vector-size x)
+      (bytes? x)  (bytes-size x)
       (string? x) (string-length x)
       (list? x)   (list-length x)))
 
@@ -187,8 +189,14 @@
 
 (def (neg f) (fn (x) (not (f x))))
 
+(def (capacity x)
+  (if (vector? x) (vector-capacity x)
+      (bytes? x)  (bytevector-capacity x)
+      (string? x) (string-capacity x)))
+
 (def (push-back x value)
   (if (vector? x) (vector-push-back x value)
+      (bytes? x)  (bytevector-push-back x value)
       (string? x) (string-push-back x value)))
 
 (def (list-for-each x f)

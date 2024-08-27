@@ -309,9 +309,10 @@
   (make-array n :element-type 'character
                 :fill-pointer 0))
 (zdefun string-push-back (x c) (vector-push-extend c x) x)
+(zdefun string-capacity (x) (array-total-size x))
 
 (zdefun make-vector (n &optional x) (make-array n :initial-element x))
-(zdefun vector? (x) (vectorp x))
+(zdefun vector? (x) (and (vectorp x) (eq (array-element-type x) t)))
 (zdefun vector-ref (x i) (aref x i))
 (zdefun vector-set (x i v) (setf (aref x i) v))
 (defun vector-size (x) (declare (type vector x)) (length x))
@@ -321,6 +322,28 @@
   (make-array n :fill-pointer 0))
 (zdefun vector-push-back (x value) (vector-push-extend value x) x)
 (zdefun vector-capacity (x) (array-total-size x))
+
+(zdefun make-bytevector (n &optional (x 0))
+  (make-array n :element-type '(unsigned-byte 8)
+                :initial-element x))
+(zdefun bytes (&rest xs)
+  (make-array (length xs) :element-type '(unsigned-byte 8)
+                          :initial-contents xs))
+
+(zdefun bytes? (x)
+  (and (arrayp x)
+       (equal (array-element-type x) '(unsigned-byte 8))))
+
+(zdefun bytes-ref (x i) (aref x i))
+(zdefun bytes-set (x i v) (seft (aref x i) v))
+(zdefun bytes-size (x) (length x))
+
+(zdefun make-adjustable-bytevector (&optional (n 0))
+  (make-array n :element-type '(unsigned-byte 8)
+                :fill-pointer 0))
+
+(zdefun bytevector-push-back (x value) (vector-push-extend value x) x)
+(zdefun bytevector-capacity (x) (array-total-size x))
 
 (zdefun fn? (x) (functionp x))
 
