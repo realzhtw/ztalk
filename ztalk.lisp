@@ -64,7 +64,7 @@
     (awhile (read-sym-char)
       (write-char it s))))
 
-(declaim (ftype (function () t) ztalk-read))
+(declaim (ftype (function (&optional t) t) ztalk-read))
 (declaim (ftype (function (t) t) ztalk-load))
 
 (defvar *free-vars*)
@@ -349,7 +349,7 @@
 
 (zdefun make-dict () (make-hash-table))
 (zdefun dict? (x) (hash-table-p x))
-(zdefun dict-ref (d k) (gethash k d))
+(zdefun dict-ref (d k &optional v) (gethash k d v))
 (zdefun dict-set (d k v) (setf (gethash k d) v))
 
 (zdefun load (path) (ztalk-load path))
@@ -376,12 +376,14 @@
 (zdef stdout *standard-output*)
 (zdef stderr *error-output*)
 
-(zdefun open-input-file (path) (ignore-errors (open path :direction :input)))
-(zdefun open-output-file (path) (ignore-errors (open path :direction :output)))
-(zdefun close-file (f) (ignore-errors (close f)))
+(zdefun open-input-file (path) (open path :direction :input))
+(zdefun open-output-file (path) (open path :direction :output))
+(zexport close (f))
 (zdefun file? (x) (filep x))
+(zdefun open-input-string (s) (make-string-input-stream s))
+(zdefun open-output-string () (make-string-output-stream))
 
-(zdefun cl-read (&optional s) (read s))
+(zdefun cl-read (&optional s) (ztalk-read s))
 
 (zdefun peek-char (&optional s) (peek-char nil s nil))
 (zdefun read-char (&optional s) (read-char s nil nil))
@@ -406,10 +408,10 @@
       (set-macro-character c #'ztalk-read-quoted nil rt))
     rt))
 
-(defun ztalk-read ()
+(defun ztalk-read (&optional s)
   (let ((*readtable* *ztalk-readtable*)
         (*package* *ztalk-package*))
-    (read)))
+    (read s)))
 
 (defun ztalk-eval (x)
   (let ((*free-vars* nil))

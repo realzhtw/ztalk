@@ -329,6 +329,22 @@
        ,@body
        ,gv)))
 
+(macro (accumulate-to-dict acc-fn . body)
+  (w/uniq (gd)
+    `(let* (,gd (make-dict)
+            ,acc-fn (fn (k v) (dict-set ,gd k v)))
+       ,@body
+       ,gd)))
+
+(def (dict . content)
+  (accumulate-to-dict acc
+    ((afn (xs)
+       (if (null? xs)       nil
+           (null? (cdr xs)) (acc (car xs) nil)
+                            (do (acc (car xs) (cadr xs))
+                                (self (cddr xs)))))
+      content)))
+
 (def (split-string s c)
   (accumulate-to-vector acc
     ((afn (i j)
@@ -367,10 +383,25 @@
   (whiler c (peek-char s) (whitespace c)
     (read-char s)))
 
+(macro (with-input-from-string var str . body)
+  `(let (,var (open-input-string ,str))
+     ,@body))
+
+(def (read-atom &opt s)
+  (let (str (accumulate-to-string acc
+              (whiler c (peek-char s) (not (or (whitespace c) (in c #\) #\( #\[ #\])))
+                (acc (read-char s)))))
+    (with-input-from-string ss str
+      (cl-read ss))))
+
+(def (read-delimited-list c s)
+  (if (is (skip-space s) c)
+    (do (read-char s) nil)
+    (cons (read-atom s) (read-delimited-list c s))))
+
 (def (read &opt s)
-  (skip-space s)
-  (case (peek-char s)
-    #\[ (do (read-char) (cons 'vector (read-delimited-list #\] s)))
+  (case (skip-space s)
+    #\[ (do (read-char) (apply vector (read-delimited-list #\] s)))
     #\( (do (read-char) (read-delimited-list #\) s))
         (cl-read s)))
 
