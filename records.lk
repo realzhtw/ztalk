@@ -1,0 +1,19 @@
+(macro (record name &rest fields)
+  (let* (nm (symbol-name name)
+         nf (length fields))
+    `(do
+       (def (,(symbol (append "make-" nm)) ,@fields)
+         (annotate 'record
+                   (vector (quote ,name) ,@fields)))
+       (def (,(symbol (append nm "?")) x)
+         (and (record? x)
+              (is (vector-ref (rep x) 0) (quote ,name))))
+       ,@(accumulate acc
+           (w/uniq (g)
+             (for x (enumerate fields 1)
+               (let (i (car x)
+                     f (cadr x))
+                 (acc `(def (,(symbol (append nm "-" (symbol-name f))) ,g)
+                         (vector-ref (rep ,g) ,i))))))))))
+
+(def (record? x) (is-a x 'record))

@@ -1,0 +1,114 @@
+(def (scons a b) (annotate 'scons (cons a b)))
+
+(macro (seq hd tl)
+  `(scons ,hd (fn () ,tl)))
+
+(def (seq? x) (or (null? x) (is-a x 'scons)))
+(def (seq-hd s) (car (rep s)))
+(def (seq-tl s)
+  (let (r (rep s))
+    (when (fn? (cdr r))
+      (set-cdr r ((cdr r))))
+    (cdr r)))
+
+(def (seq-map f s)
+  (unless (null? s)
+    (seq (f (seq-hd s)) (seq-map f (seq-tl s)))))
+
+(def (map f x)
+  (if (pair? x)
+      (list-map f x)
+      (seq-map f x)))
+
+(def (list-first-n l n)
+  (when (> n 0)
+    (seq (car l) (list-first-n (cdr l) (- n 1)))))
+
+(def (seq-first-n s n)
+  (when (> n 0)
+    (seq (seq-hd s) (seq-first-n (seq-tl s) (- n 1)))))
+
+(def (first-n x n)
+  (if (pair? x)
+      (list-first-n x n)
+      (seq-first-n x n)))
+
+(def (list-enumerate s n)
+  (unless (null? s) 
+    (seq (list n (car s)) (enumerate (cdr s) (+ n 1)))))
+
+(def (seq-enumerate s n)
+  (unless (null? s)
+    (seq (list n (seq-hd s)) (seq-enumerate (seq-tl s) (+ n 1)))))
+
+(def (enumerate x n)
+  (if (pair? x)
+      (list-enumerate x n)
+      (seq-enumerate x n)))
+
+(def (inf-range start stride)
+  (seq start (inf-range (+ start stride) stride)))
+  
+(def (seq->list s)
+  ((afn (r s)
+     (if (null? s)
+         (reverse r) 
+         (self (cons (hd s) r) (tl s))))
+   nil s))
+
+(def (seq->vector s)
+  (accumulate-to-vector acc
+    (seq-for-each s acc)))
+
+(def (list-for-each x f)
+  (unless (null? x)
+    (f (car x)) 
+    (list-for-each (cdr x) f)))
+
+(def (string-for-each x f)
+  ((afn (i) 
+     (when (< i (string-length x))
+       (f (string-ref x i))
+       (self (+ i 1))))
+   0))
+
+(def (vector-for-each x f)
+  ((afn (i)
+     (when (< i (vector-size x))
+       (f (vector-ref x i))
+       (self (+ i 1)))) 
+   0))
+
+(def (range a b) (annotate 'range (cons a b)))
+(def (range? x) (is-a x 'range))
+(def (range-from r) (car (rep r)))
+(def (range-to r)   (cdr (rep r)))
+
+(def (range-for-each x f)
+  ((afn (i)
+     (when (< i (range-to x))
+       (f i)
+       (self (+ i 1))))
+   (range-from x)))
+
+(def (seq-for-each s f)
+  (unless (null? s)
+    (f (seq-hd s))
+    (seq-for-each (seq-tl s) f)))
+
+(def (for-each x f)
+  (if (vector? x) (vector-for-each x f)
+      (string? x) (string-for-each x f)
+      (list? x)   (list-for-each x f)
+      (range? x)  (range-for-each x f)
+      (seq? x)    (seq-for-each x f)))
+
+(def (hd s) 
+  (if (pair? s) 
+      (car s)
+      (seq-hd s)))
+
+(def (tl s) 
+  (if (pair? s)
+      (cdr s)
+      (seq-tl s)))

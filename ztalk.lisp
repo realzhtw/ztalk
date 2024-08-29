@@ -150,10 +150,11 @@
 
 
 (defun compile-params (x)
-  (cond ((null x)                 nil)
-        ((symbolp x)              (list '&rest x))
-        ((car-is x '|lk|::|&opt|) (cons '&optional (compile-params (cdr x))))
-        ((consp x)                (cons (car x) (compile-params (cdr x))))))
+  (cond ((null x)                  nil)
+        ((symbolp x)               (list '&rest x))
+        ((car-is x '|lk|::|&rest|) (cons '&rest (compile-params (cdr x))))
+        ((car-is x '|lk|::|&opt|)  (cons '&optional (compile-params (cdr x))))
+        ((consp x)                 (cons (car x) (compile-params (cdr x))))))
 
 (defun param-names (x)
   (cond ((null x) nil)
@@ -186,12 +187,12 @@
 (defun expand-qquote (x level)
   ;(format t "expand-qquote: ~S (level = ~S)~%" x level)
   (cond ((= level 0) x)
-        ((atom x)                    `(|lk|::|quote| ,x))
-        ((car-is x '|lk|::|unquote|) (if (= level 1)
-                                         (cadr x)
-                                         (expand-qquoted-list x (- level 1))))
-        ((car-is x '|lk|::|qquote|)  `(|lk|::|qquote| ,(expand-qquote (cadr x) (+ level 1))))
-        (t                           (expand-qquoted-list x level))))
+        ((atom x)                       `(|lk|::|quote| ,x))
+        ((car-is x '|lk|::|unquote|)    (if (= level 1)
+                                            (cadr x)
+                                            (expand-qquoted-list x (- level 1))))
+        ((car-is x '|lk|::|quasiquote|) `(|lk|::|quasiquote| ,(expand-qquote (cadr x) (+ level 1))))
+        (t                              (expand-qquoted-list x level))))
 
 ; TODO:
 ;   `(,x) when x is not a list
@@ -250,16 +251,16 @@
     (apply m (cons #'identity (cdr x)))))
 
 (defun compile (x env k)
-  (cond ((literalp x)                (compile-literal x k))
-        ((symbolp x)                 (compile-var x env k))
-        ((car-is x '|lk|::|set|)     (compile-set (cdr x) env k))
-        ((car-is x '|lk|::|if|)      (compile-if (cdr x) env k))
-        ((car-is x '|lk|::|fn|)      (compile-fn (cdr x) env k))
-        ((car-is x '|lk|::|quote|)   (emit-funcall k `(quote ,(cadr x))))
-        ((car-is x '|lk|::|qquote|)  (compile-qquote (cadr x) env k))
-        ((macrop x)                  (compile (ztalk-macroexpand x) env k))
-        ((consp x)                   (compile-call x env k))
-        (t                           (error (format t "Can't compile ~S" x)))))
+  (cond ((literalp x)                   (compile-literal x k))
+        ((symbolp x)                    (compile-var x env k))
+        ((car-is x '|lk|::|set|)        (compile-set (cdr x) env k))
+        ((car-is x '|lk|::|if|)         (compile-if (cdr x) env k))
+        ((car-is x '|lk|::|fn|)         (compile-fn (cdr x) env k))
+        ((car-is x '|lk|::|quote|)      (emit-funcall k `(quote ,(cadr x))))
+        ((car-is x '|lk|::|quasiquote|) (compile-qquote (cadr x) env k))
+        ((macrop x)                     (compile (ztalk-macroexpand x) env k))
+        ((consp x)                      (compile-call x env k))
+        (t                              (error (format t "Can't compile ~S" x)))))
 
 ; ztalk definitions
 
@@ -397,7 +398,7 @@
 
 (defun ztalk-read-quoted (s c)
   (cond ((eq c #\') (list '|lk|::|quote| (read s t nil t)))
-        ((eq c #\`) (list '|lk|::|qquote| (read s t nil t)))
+        ((eq c #\`) (list '|lk|::|quasiquote| (read s t nil t)))
         ((eq c #\,) (if (read-char-if #\@ s)
                         (list '|lk|::|unquote-splicing| (read s t nil t))
                         (list '|lk|::|unquote| (read s t nil t))))))
@@ -428,9 +429,6 @@
 (zdef eval
   (lambda (k e)
     (ztalk-eval e k)))
-
-(zdefun cl-require (x)
-  (require x))
 
 (defun ztalk-load (path)
   (with-open-file (*standard-input* path)

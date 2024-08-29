@@ -2,11 +2,11 @@
 
 (set macro
   (annotate 'macro
-            (fn (sig . body)
+            (fn (sig &rest body)
               `(set ,(car sig)
                     (annotate 'macro (fn ,(cdr sig) ,@body))))))
 
-(macro (def sig . body)
+(macro (def sig &rest body)
   (if (symbol? sig)
       `(set ,sig ,@body)
       `(set ,(car sig) (fn ,(cdr sig) ,@body))))
@@ -32,7 +32,7 @@
 (def (not x) (is x nil))
 (def (no x) (is x nil))
 
-(macro (rfn sig . body)
+(macro (rfn sig &rest body)
   ((fn (name params)
      `((fn (,name)
          (set ,name (fn ,params ,@body))
@@ -40,7 +40,7 @@
        nil))
    (car sig) (cdr sig)))
 
-(macro (afn params . body)
+(macro (afn params &rest body)
   `(rfn (self ,@params) ,@body))
 
 (def (list-length xs)
@@ -69,66 +69,66 @@
       ys
       (cons (car xs) (intersperse ys (cdr xs)))))
 
-(def (map f xs)
+(def (list-map f xs)
   ((afn (rs xs)
      (if (null? xs)
          (reverse rs)
          (self (cons (f (car xs)) rs) (cdr xs))))
    nil xs))
 
-(macro (let bindings . body)
+(macro (let bindings &rest body)
   ((fn (paired-bindings)
-     `((fn ,(map car paired-bindings) ,@body) ,@(map cadr paired-bindings)))
+     `((fn ,(list-map car paired-bindings) ,@body) ,@(list-map cadr paired-bindings)))
    (pair bindings)))
 
-(macro (let* bindings . body)
+(macro (let* bindings &rest body)
   (if (null? bindings)
       `(do ,@body)
       `(let (,(car bindings) ,(cadr bindings))
          (let* ,(cddr bindings)
            ,@body))))
 
-(macro (w/uniq names . body)
-  `(let ,(intersperse names (map (fn (_) '(gensym)) names))
+(macro (w/uniq names &rest body)
+  `(let ,(intersperse names (list-map (fn (_) '(gensym)) names))
      ,@body))
 
-(macro (and . args)
+(macro (and &rest args)
   (if (null? args)       'true
       (null? (cdr args)) (car args)
                          `(if ,(car args) (and ,@(cdr args)))))
 
-(macro (or . args)
+(macro (or &rest args)
   (if (null? args)
       'false
       (w/uniq (g)
         `(let (,g ,(car args))
            (if ,g ,g (or ,@(cdr args)))))))
 
-(macro (aand x . args)
+(macro (aand x &rest args)
   `(let (it ,x)
      (and it ,@args)))
 
-(macro (after x . body)
+(macro (after x &rest body)
   (w/uniq (g)
     `(let (,g ,x) ,@body ,g)))
 
-(macro (do . body)
+(macro (do &rest body)
   `((fn () ,@body)))
 
-(macro (when cnd . body)
+(macro (when cnd &rest body)
   `(if ,cnd (do ,@body)))
 
-(macro (unless cnd . body)
+(macro (unless cnd &rest body)
   `(if (not ,cnd) (do ,@body)))
 
-(macro (while cnd . body)
+(macro (while cnd &rest body)
   (w/uniq (g)
     `((rfn (,g)
         (when ,cnd
           ,@body
           (,g))))))
 
-(macro (whiler var expr cnd . body)
+(macro (whiler var expr cnd &rest body)
   (w/uniq (iter)
     `((rfn (,iter)
         (let (,var ,expr)
@@ -137,7 +137,7 @@
                 (,iter))
             ,var))))))
 
-(macro (point name . body)
+(macro (point name &rest body)
   `(call/cc (fn (,name) ,@body)))
 
 (def (list? x)
@@ -155,7 +155,7 @@
          (let (,f (dict-ref ,vtable (type ,(car params))))
            (,f ,@params))))))
 
-(macro (defm sig . body)
+(macro (defm sig &rest body)
   (let* (name (car sig)
          params (cdr sig)
          vtable (symbol (append (symbol-name name) "-vtable")))
@@ -175,6 +175,24 @@
       (string? x) (string-length x)
       (list? x)   (list-length x)))
 
+(macro (in x &rest xs)
+  (w/uniq (g)
+    `(let (,g ,x)
+       (or ,@(list-map (fn (x) `(is ,g ,x)) xs)))))
+
+(macro (case-let var expr &rest args)
+  (let (ex (afn (args)
+             (if (null? (cdr args))
+                 (car args)
+                 `(if (is ,var (quote ,(car args)))
+                      ,(cadr args)
+                      ,(self (cddr args))))))
+    `(let (,var ,expr) ,(ex args))))
+
+(macro (case expr &rest args)
+  (w/uniq (g)
+    `(case-let ,g ,expr ,@args)))
+
 (def (reduce f x0 xs)
   (if (null? xs)
       x0
@@ -184,8 +202,8 @@
   (unless (null? xs)
     (reduce (fn (a b) (if (f a b) a b)) (car xs) (cdr xs))))
 
-(def (min . xs) (best < xs))
-(def (max . xs) (best > xs))
+(def (min &rest xs) (best < xs))
+(def (max &rest xs) (best > xs))
 
 (def (neg f) (fn (x) (not (f x))))
 
@@ -199,144 +217,46 @@
       (bytes? x)  (bytevector-push-back x value)
       (string? x) (string-push-back x value)))
 
-(def (list-for-each x f)
-  (unless (null? x)
-    (f (car x))
-    (list-for-each (cdr x) f)))
-
-(def (string-for-each x f)
-  ((afn (i)
-     (when (< i (string-length x))
-       (f (string-ref x i))
-       (self (+ i 1))))
-   0))
-
-(def (vector-for-each x f)
-  ((afn (i)
-     (when (< i (vector-size x))
-       (f (vector-ref x i))
-       (self (+ i 1))))
-   0))
-
-(def (range a b) (annotate 'range (cons a b)))
-(def (range? x) (is-a x 'range))
-(def (range-from r) (car (rep r)))
-(def (range-to r)   (cdr (rep r)))
-
-(def (range-for-each x f)
-  ((afn (i)
-     (when (< i (range-to x))
-       (f i)
-       (self (+ i 1))))
-   (range-from x)))
-
-(def (scons a b) (annotate 'scons (cons a b)))
-
-(macro (seq hd tl)
-  `(scons ,hd (fn () ,tl)))
-
-(def (seq? x) (or (null? x) (is-a x 'scons)))
-(def (seq-hd s) (car (rep s)))
-(def (seq-tl s)
-  (let (r (rep s))
-    (when (fn? (cdr r))
-      (set-cdr r ((cdr r))))
-    (cdr r)))
-
-(def (seq->list s)
-  ((afn (r s)
-     (if (null? s)
-         (reverse r)
-         (self (cons (hd s) r) (tl s))))
-   nil s))
-
-(def (seq-for-each s f)
-  (unless (null? s)
-    (f (seq-hd s))
-    (seq-for-each (seq-tl s) f)))
-
-(def (for-each x f)
-  (if (vector? x) (vector-for-each x f)
-      (string? x) (string-for-each x f)
-      (list? x)   (list-for-each x f)
-      (range? x)  (range-for-each x f)
-      (seq? x)    (seq-for-each x f)))
-
-(def (hd s)
-  (if (pair? s)
-      (car s)
-      (seq-hd s)))
-
-(def (tl s)
-  (if (pair? s)
-      (cdr s)
-      (seq-tl s)))
-
-(macro (for x xs . body)
-  `(for-each ,xs (fn (,x) ,@body)))
-
-(def (enumerate s n)
-  (if (null? s)
-      nil
-      (seq (list n (hd s)) (enumerate (tl s) (+ n 1)))))
-
-(def (append x . xs)
-  (if (string? x) (apply string-append (cons x xs))
-      (list? x)   (apply list-append (cons x xs))
-      (vector? x) (apply vector-append (cons x xs))))
-
-(macro (accumulate-reversed acc-fn . body)
-  (w/uniq (gl)
-    `(let* (,gl nil
-            ,acc-fn (fn (x) (push x ,gl)))
-       ,@body
-       ,gl)))
-
-(macro (accumulate acc-fn . body)
-  `(reverse (accumulate-reversed ,acc-fn ,@body)))
-
-(def (record? x) (is-a x 'record))
-
-(macro (record name . fields)
-  (let* (nm (symbol-name name)
-         nf (length fields))
-    `(do
-       (def (,(symbol (append "make-" nm)) ,@fields)
-         (annotate 'record
-                   (vector (quote ,name) ,@fields)))
-       (def (,(symbol (append nm "?")) x)
-         (and (record? x)
-              (is (vector-ref (rep x) 0) (quote ,name))))
-       ,@(accumulate acc
-           (w/uniq (g)
-             (for x (enumerate fields 1)
-               (let (i (car x)
-                     f (cadr x))
-                 (acc `(def (,(symbol (append nm "-" (symbol-name f))) ,g)
-                         (vector-ref (rep ,g) ,i))))))))))
-
-(macro (accumulate-to-string acc-fn . body)
+(macro (accumulate-to-string acc-fn &rest body)
   (w/uniq (gs)
     `(let* (,gs (make-adjustable-string)
             ,acc-fn (fn (c) (string-push-back ,gs c)))
        ,@body
        ,gs)))
 
-(macro (accumulate-to-vector acc-fn . body)
+(macro (accumulate-to-vector acc-fn &rest body)
   (w/uniq (gv)
     `(let* (,gv (make-adjustable-vector)
             ,acc-fn (fn (c) (vector-push-back ,gv c)))
        ,@body
        ,gv)))
 
-(macro (accumulate-to-dict acc-fn . body)
+(macro (accumulate-to-dict acc-fn &rest body)
   (w/uniq (gd)
     `(let* (,gd (make-dict)
             ,acc-fn (fn (k v) (dict-set ,gd k v)))
        ,@body
        ,gd)))
 
-(def (dict . content)
+(macro (for x xs &rest body)
+  `(for-each ,xs (fn (,x) ,@body)))
+
+(def (append x &rest xs)
+  (if (string? x) (apply string-append (cons x xs))
+      (list? x)   (apply list-append (cons x xs))
+      (vector? x) (apply vector-append (cons x xs))))
+
+(macro (accumulate-reversed acc-fn &rest body)
+  (w/uniq (gl)
+    `(let* (,gl nil
+            ,acc-fn (fn (x) (push x ,gl)))
+       ,@body
+       ,gl)))
+
+(macro (accumulate acc-fn &rest body)
+  `(reverse (accumulate-reversed ,acc-fn ,@body)))
+
+(def (dict &rest content)
   (accumulate-to-dict acc
     ((afn (xs)
        (if (null? xs)       nil
@@ -351,39 +271,21 @@
       (whiler c (read-char s) (not (in c nil #\newline))
         (acc c)))))
 
-(macro (in x . xs)
-  (w/uniq (g)
-    `(let (,g ,x)
-       (or ,@(map (fn (x) `(is ,g ,x)) xs)))))
-
 (def (whitespace c)
   (or (is c #\space)
       (is c #\tab)
       (is c #\newline)
       (is c #\return)))
 
-(macro (case-let var expr . args)
-  (let (ex (afn (args)
-             (if (null? (cdr args))
-                 (car args)
-                 `(if (is ,var (quote ,(car args)))
-                      ,(cadr args)
-                      ,(self (cddr args))))))
-    `(let (,var ,expr) ,(ex args))))
-
-(macro (case expr . args)
-  (w/uniq (g)
-    `(case-let ,g ,expr ,@args)))
-
 (def (skip-space &opt s)
   (whiler c (peek-char s) (whitespace c)
     (read-char s)))
 
-(macro (with-input-from-string var str . body)
+(macro (with-input-from-string var str &rest body)
   `(let (,var (open-input-string ,str))
      ,@body))
 
-(macro (with-input-from-file var path . body)
+(macro (with-input-from-file var path &rest body)
   `(let (,var (open-input-file ,path))
      (after (do ,@body) (close ,var))))
 
@@ -400,7 +302,7 @@
         (cl-read ss)))
     eof))
 
-(def (error msg . rest)
+(def (error msg &rest rest)
   (apply println (cons msg rest))
   (throw 'read-error))
 
@@ -415,6 +317,13 @@
     #\( (do (read-char s) (read-delimited-list #\) s))
     #\[ (do (read-char s) (cons 'vector (read-delimited-list #\] s)))
     #\{ (do (read-char s) (cons 'dict (read-delimited-list #\} s)))
+    #\' (do (read-char s) (list 'quote (read s eof)))
+    #\` (do (read-char s) (list 'quasiquote (read s eof)))
+    #\, (do (read-char s)
+            (if (is (peek-char s) #\@)
+                (do (read-char s)
+                    (list 'unquote-splicing (read s eof)))
+                (list 'unquote (read s eof))))
                           ((if (is c #\") cl-read read-atom) s eof)))
 
 (def (load path)
@@ -423,5 +332,7 @@
       (whiler e (read f eof) (isnt e eof)
         (eval e)))))
 
+(load "seq.lk")
+(load "records.lk")
 (load "strings.lk")
 (load "sockets.lk")
