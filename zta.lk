@@ -345,15 +345,11 @@
                                 (self (cddr xs)))))
       content)))
 
-(def (split-string s c)
-  (accumulate-to-vector acc
-    ((afn (i j)
-       (if (= j (length s)) (acc (substring s i j))
-           (is (ref s j) c) (do
-                              (acc (substring s i j))
-                              (self (+ j 1) (+ j 1)))
-                            (self i (+ j 1))))
-     0 0)))
+(def (read-line &opt s)
+  (if (peek-char s)
+    (accumulate-to-string acc
+      (whiler c (read-char s) (not (in c nil #\newline))
+        (acc c)))))
 
 (macro (in x . xs)
   (w/uniq (g)
@@ -387,26 +383,44 @@
   `(let (,var (open-input-string ,str))
      ,@body))
 
-(def (read-atom &opt s)
-  (let (str (accumulate-to-string acc
-              (whiler c (peek-char s) (not (or (whitespace c) (in c #\) #\( #\[ #\])))
-                (acc (read-char s)))))
-    (with-input-from-string ss str
-      (cl-read ss))))
+(macro (with-input-from-file var path . body)
+  `(let (,var (open-input-file ,path))
+     (after (do ,@body) (close ,var))))
 
-(def (read-delimited-list c s)
-  (if (is (skip-space s) c)
-    (do (read-char s) nil)
-    (cons (read-atom s) (read-delimited-list c s))))
+(def (atom-delimiter? c)
+  (or (whitespace c)
+      (in c #\) #\( #\[ #\] #\{ #\})))
 
-(def (read &opt s)
-  (case (skip-space s)
-    #\[ (do (read-char) (apply vector (read-delimited-list #\] s)))
-    #\( (do (read-char) (read-delimited-list #\) s))
-        (cl-read s)))
-
-(def (read-line &opt s)
+(def (read-atom &opt s eof)
   (if (peek-char s)
-    (accumulate-to-string acc
-      (whiler c (read-char s) (not (in c nil #\newline))
-        (acc c)))))
+    (let (str (accumulate-to-string acc
+                (whiler c (peek-char s) (not (or (null? c) (atom-delimiter? c)))
+                  (acc (read-char s)))))
+      (with-input-from-string ss str
+        (cl-read ss)))
+    eof))
+
+(def (error msg . rest)
+  (apply println (cons msg rest))
+  (throw 'read-error))
+
+(def (read-delimited-list d s)
+  (let (c (skip-space s))
+    (if (is c d) (do (read-char s) nil)
+        (is c nil) (error "Expected " d)
+                   (cons (read s) (read-delimited-list d s)))))
+
+(def (read &opt s eof error-on-eof)
+  (case-let c (skip-space s)
+    #\( (do (read-char s) (read-delimited-list #\) s))
+    #\[ (do (read-char s) (cons 'vector (read-delimited-list #\] s)))
+    #\{ (do (read-char s) (cons 'dict (read-delimited-list #\} s)))
+                          ((if (is c #\") cl-read read-atom) s eof)))
+
+(def (load path)
+  (with-input-from-file f path
+    (w/uniq (eof)
+      (whiler e (read f eof) (isnt e eof)
+        (eval e)))))
+
+(load "string.lk")

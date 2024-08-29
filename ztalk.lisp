@@ -64,7 +64,7 @@
     (awhile (read-sym-char)
       (write-char it s))))
 
-(declaim (ftype (function (&optional t) t) ztalk-read))
+(declaim (ftype (function (&optional t t) t) ztalk-read))
 (declaim (ftype (function (t) t) ztalk-load))
 
 (defvar *free-vars*)
@@ -383,7 +383,7 @@
 (zdefun open-input-string (s) (make-string-input-stream s))
 (zdefun open-output-string () (make-string-output-stream))
 
-(zdefun cl-read (&optional s) (ztalk-read s))
+(zdefun cl-read (&optional s eof) (ztalk-read s eof))
 
 (zdefun peek-char (&optional s) (peek-char nil s nil))
 (zdefun read-char (&optional s) (read-char s nil nil))
@@ -408,21 +408,25 @@
       (set-macro-character c #'ztalk-read-quoted nil rt))
     rt))
 
-(defun ztalk-read (&optional s)
+(defun ztalk-read (&optional s eof)
   (let ((*readtable* *ztalk-readtable*)
         (*package* *ztalk-package*))
-    (read s)))
+    (read s nil eof)))
 
-(defun ztalk-eval (x)
+(defun ztalk-eval (x &optional (k #'identity))
   (let ((*free-vars* nil))
-    (w/uniq (k)
-      (let ((cx (compile x nil k)))
+    (w/uniq (gk)
+      (let ((cx (compile x nil gk)))
         ;(format t "Free vars: ~S~%" *free-vars*)
         ;(format t "Compiled: ~S~%" cx)
-        (funcall (cl:compile nil `(lambda (,k)
+        (funcall (cl:compile nil `(lambda (,gk)
                                     (declare (special ,@*free-vars*))
                                     ,cx))
-                 #'identity)))))
+                 k)))))
+
+(zdef eval
+  (lambda (k e)
+    (ztalk-eval e k)))
 
 (defun ztalk-load (path)
   (with-open-file (*standard-input* path)
