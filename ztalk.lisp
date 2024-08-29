@@ -384,6 +384,7 @@
 (zdefun open-output-string () (make-string-output-stream))
 
 (zdefun cl-read (&optional s eof) (ztalk-read s eof))
+(zdefun cl-load (path) (load path))
 
 (zdefun peek-char (&optional s) (peek-char nil s nil))
 (zdefun read-char (&optional s) (read-char s nil nil))
@@ -427,6 +428,9 @@
 (zdef eval
   (lambda (k e)
     (ztalk-eval e k)))
+
+(zdefun cl-require (x)
+  (require x))
 
 (defun ztalk-load (path)
   (with-open-file (*standard-input* path)

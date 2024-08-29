@@ -423,4 +423,5 @@
       (whiler e (read f eof) (isnt e eof)
         (eval e)))))
 
-(load "string.lk")
+(load "strings.lk")
+(load "sockets.lk")
