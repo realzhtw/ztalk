@@ -4,18 +4,8 @@
 
 (in-package ztalk)
 
-;(defmacro fn (params . body)
-;  `(lambda ,params ,@body))
-
 (defmacro rfn (name params &rest body)
   `(labels ((,name ,params ,@body)) #',name))
-
-;(defmacro aif (c then &rest else)
-;  `(let ((it ,c))
-;     (if it ,then ,@else)))
-
-;(defmacro afn (params &rest body)
-;  `(rfn self ,params ,@body))
 
 (defmacro w/uniq (names &rest body)
   `(let ,(mapcar (lambda (x) (list x '(gensym))) names) ,@body))
@@ -64,7 +54,7 @@
     (awhile (read-sym-char)
       (write-char it s))))
 
-(declaim (ftype (function (&optional t t) t) ztalk-read))
+(declaim (ftype (function (&optional t t t) t) ztalk-read))
 (declaim (ftype (function (t) t) ztalk-load))
 
 (defvar *free-vars*)
@@ -394,6 +384,7 @@
 (zdefun write-char (c &optional s) (write-char c s))
 (zdefun print (&rest args) (dolist (x args) (princ x)))
 (zdefun println (&rest args) (dolist (x args) (princ x)) (terpri) nil)
+(zdefun flush (&optional s) (finish-output s))
 
 ; ztalk-reader
 (defvar *case-sensitive-readtable*)
@@ -412,10 +403,10 @@
       (set-macro-character c #'ztalk-read-quoted nil rt))
     rt))
 
-(defun ztalk-read (&optional s eof)
+(defun ztalk-read (&optional s (error-on-eof t) eof)
   (let ((*readtable* *ztalk-readtable*)
         (*package* *ztalk-package*))
-    (read s nil eof)))
+    (read s error-on-eof eof)))
 
 (defun ztalk-eval (x &optional (k #'identity))
   (let ((*free-vars* nil))
