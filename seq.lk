@@ -28,10 +28,26 @@
   (when (> n 0)
     (seq (seq-hd s) (seq-first-n (seq-tl s) (- n 1)))))
 
-(def (first-n x n)
-  (if (pair? x)
-      (list-first-n x n)
-      (seq-first-n x n)))
+(def (seq-nth s n)
+  (if (= n 0)
+      (seq-hd s)
+      (seq-nth (seq-tl s) (- n 1))))
+
+(def (seq-find-that s f)
+  (unless (null? s)
+    (if (f (seq-hd s))
+        (seq-hd s)
+        (seq-find-that (seq-tl s) f))))
+
+(def (seq-first-that s f)
+  (unless (null? s)
+    (when (f (seq-hd s))
+      (seq (seq-hd s) (seq-first-that (seq-tl s) f)))))
+
+(def (first-n s n)
+  (if (pair? s)
+      (list-first-n s n)
+      (seq-first-n s n)))
 
 (def (list-enumerate s n)
   (unless (null? s) 

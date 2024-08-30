@@ -256,6 +256,9 @@
 (macro (accumulate acc-fn &rest body)
   `(reverse (accumulate-reversed ,acc-fn ,@body)))
 
+(def (less-than n) (fn (x) (< x n)))
+(def (more-than n) (fn (x) (> x n)))
+
 (def (dict &rest content)
   (accumulate-to-dict acc
     ((afn (xs)
@@ -332,6 +335,7 @@
       (whiler e (read f eof) (isnt e eof)
         (eval e)))))
 
+(load "math.lk")
 (load "seq.lk")
 (load "records.lk")
 (load "strings.lk")
