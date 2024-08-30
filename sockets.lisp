@@ -17,7 +17,7 @@
 
 (defun bslice (buf start end)
   (make-array (- end start)
-	      :element-type '(unsignedbyte 8)
+	      :element-type '(unsigned-byte 8)
 	      :displaced-to buf
 	      :displaced-index-offset start))
 

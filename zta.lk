@@ -116,6 +116,11 @@
   `(with ,(intersperse names (list-map (fn (_) '(gensym)) names))
      ,@body))
 
+(def (list-ref xs i)
+  (if (= i 0)
+      (car xs)
+      (list-ref (cdr xs) (- i 1))))
+
 (macro (after x &rest body)
   (w/uniq (g)
     `(let ,g ,x
@@ -198,7 +203,8 @@
                (fn ,(cons (car (car params)) (cdr params)) ,@body))))
 
 (def (ref x k)
-  (if (vector? x) (vector-ref x k)
+  (if (pair? x)   (list-ref x k)
+      (vector? x) (vector-ref x k)
       (bytes? x)  (bytes-ref x k)
       (string? x) (string-ref x k)
       (dict? x) (dict-ref x k)))
