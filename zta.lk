@@ -18,14 +18,6 @@
 (def (cadr x) (car (cdr x)))
 (def (cddr x) (cdr (cdr x)))
 
-(macro (push x l)
-  `(set ,l (cons ,x ,l)))
-
-(macro (pop l)
-  (w/uniq (g)
-    `(let (g (car ,l))
-       (set ,l (cdr ,l)))))
-
 (def (isnt x y) (not (is x y)))
 
 (def (null? x) (is x nil))
@@ -76,21 +68,40 @@
          (self (cons (f (car xs)) rs) (cdr xs))))
    nil xs))
 
-(macro (let bindings &rest body)
+(macro (with bindings &rest body)
   ((fn (paired-bindings)
-     `((fn ,(list-map car paired-bindings) ,@body) ,@(list-map cadr paired-bindings)))
+     `((fn ,(list-map car paired-bindings) ,@body)
+       ,@(list-map cadr paired-bindings)))
    (pair bindings)))
 
-(macro (let* bindings &rest body)
+(macro (let var expr &rest body)
+  `(with (,var ,expr)
+     ,@body))
+
+(macro (withs bindings &rest body)
   (if (null? bindings)
       `(do ,@body)
-      `(let (,(car bindings) ,(cadr bindings))
-         (let* ,(cddr bindings)
+      `(with (,(car bindings) ,(cadr bindings))
+         (withs ,(cddr bindings)
            ,@body))))
 
 (macro (w/uniq names &rest body)
-  `(let ,(intersperse names (list-map (fn (_) '(gensym)) names))
+  `(with ,(intersperse names (list-map (fn (_) '(gensym)) names))
      ,@body))
+
+(macro (after x &rest body)
+  (w/uniq (g)
+    `(let ,g ,x
+       ,@body ,g)))
+
+(macro (push x l)
+  `(set ,l (cons ,x ,l)))
+
+(macro (pop l)
+  (w/uniq (g)
+    `(let ,g (car ,l)
+       (set ,l (cdr ,l))
+       ,g)))
 
 (macro (and &rest args)
   (if (null? args)       'true
@@ -101,16 +112,12 @@
   (if (null? args)
       'false
       (w/uniq (g)
-        `(let (,g ,(car args))
+        `(let ,g ,(car args)
            (if ,g ,g (or ,@(cdr args)))))))
 
 (macro (aand x &rest args)
-  `(let (it ,x)
+  `(let it ,x
      (and it ,@args)))
-
-(macro (after x &rest body)
-  (w/uniq (g)
-    `(let (,g ,x) ,@body ,g)))
 
 (macro (do &rest body)
   `((fn () ,@body)))
@@ -131,7 +138,7 @@
 (macro (whiler var expr cnd &rest body)
   (w/uniq (iter)
     `((rfn (,iter)
-        (let (,var ,expr)
+        (let ,var ,expr
           (if ,cnd
             (do ,@body
                 (,iter))
@@ -145,20 +152,20 @@
       (null? x)))
 
 (macro (defg sig)
-  (let* (name (car sig)
-         params (cdr sig)
-         vtable (symbol (append (symbol-name name) "-vtable"))
-         f (gensym))
+  (withs (name (car sig)
+          params (cdr sig)
+          vtable (symbol (append (symbol-name name) "-vtable"))
+          f (gensym))
     `(do
        (def ,vtable (make-dict))
        (def (,name ,@params)
-         (let (,f (dict-ref ,vtable (type ,(car params))))
+         (let ,f (dict-ref ,vtable (type ,(car params)))
            (,f ,@params))))))
 
 (macro (defm sig &rest body)
-  (let* (name (car sig)
-         params (cdr sig)
-         vtable (symbol (append (symbol-name name) "-vtable")))
+  (withs (name (car sig)
+          params (cdr sig)
+          vtable (symbol (append (symbol-name name) "-vtable")))
     `(dict-set ,vtable
                (quote ,(cadr (car params)))
                (fn ,(cons (car (car params)) (cdr params)) ,@body))))
@@ -177,17 +184,18 @@
 
 (macro (in x &rest xs)
   (w/uniq (g)
-    `(let (,g ,x)
+    `(let ,g ,x
        (or ,@(list-map (fn (x) `(is ,g ,x)) xs)))))
 
 (macro (case-let var expr &rest args)
-  (let (ex (afn (args)
-             (if (null? (cdr args))
-                 (car args)
-                 `(if (is ,var (quote ,(car args)))
-                      ,(cadr args)
-                      ,(self (cddr args))))))
-    `(let (,var ,expr) ,(ex args))))
+  (let ex (afn (args)
+            (if (null? (cdr args))
+                (car args)
+                `(if (is ,var (quote ,(car args)))
+                     ,(cadr args)
+                     ,(self (cddr args)))))
+    `(let ,var ,expr
+       ,(ex args))))
 
 (macro (case expr &rest args)
   (w/uniq (g)
@@ -219,22 +227,22 @@
 
 (macro (accumulate-to-string acc-fn &rest body)
   (w/uniq (gs)
-    `(let* (,gs (make-adjustable-string)
-            ,acc-fn (fn (c) (string-push-back ,gs c)))
+    `(withs (,gs (make-adjustable-string)
+             ,acc-fn (fn (c) (string-push-back ,gs c)))
        ,@body
        ,gs)))
 
 (macro (accumulate-to-vector acc-fn &rest body)
   (w/uniq (gv)
-    `(let* (,gv (make-adjustable-vector)
-            ,acc-fn (fn (c) (vector-push-back ,gv c)))
+    `(withs (,gv (make-adjustable-vector)
+             ,acc-fn (fn (c) (vector-push-back ,gv c)))
        ,@body
        ,gv)))
 
 (macro (accumulate-to-dict acc-fn &rest body)
   (w/uniq (gd)
-    `(let* (,gd (make-dict)
-            ,acc-fn (fn (k v) (dict-set ,gd k v)))
+    `(withs (,gd (make-dict)
+             ,acc-fn (fn (k v) (dict-set ,gd k v)))
        ,@body
        ,gd)))
 
@@ -248,8 +256,8 @@
 
 (macro (accumulate-reversed acc-fn &rest body)
   (w/uniq (gl)
-    `(let* (,gl nil
-            ,acc-fn (fn (x) (push x ,gl)))
+    `(withs (,gl nil
+             ,acc-fn (fn (x) (push x ,gl)))
        ,@body
        ,gl)))
 
@@ -285,11 +293,11 @@
     (read-char s)))
 
 (macro (with-input-from-string var str &rest body)
-  `(let (,var (open-input-string ,str))
+  `(let ,var (open-input-string ,str)
      ,@body))
 
 (macro (with-input-from-file var path &rest body)
-  `(let (,var (open-input-file ,path))
+  `(let ,var (open-input-file ,path)
      (after (do ,@body) (close ,var))))
 
 (def (atom-delimiter? c)
@@ -298,9 +306,9 @@
 
 (def (read-atom &opt s eof)
   (if (peek-char s)
-    (let (str (accumulate-to-string acc
-                (whiler c (peek-char s) (not (or (null? c) (atom-delimiter? c)))
-                  (acc (read-char s)))))
+    (let str (accumulate-to-string acc
+               (whiler c (peek-char s) (not (or (null? c) (atom-delimiter? c)))
+                 (acc (read-char s))))
       (with-input-from-string ss str
         (cl-read ss)))
     eof))
@@ -310,7 +318,7 @@
   (throw 'read-error))
 
 (def (read-delimited-list d s)
-  (let (c (skip-space s))
+  (let c (skip-space s)
     (if (is c d) (do (read-char s) nil)
         (is c nil) (error "Expected " d)
                    (cons (read s) (read-delimited-list d s)))))
@@ -339,4 +347,5 @@
 (load "seq.lk")
 (load "records.lk")
 (load "strings.lk")
+(load "algorithms.lk")
 (load "sockets.lk")

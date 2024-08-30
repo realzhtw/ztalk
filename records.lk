@@ -1,5 +1,5 @@
 (macro (record name &rest fields)
-  (let* (nm (symbol-name name)
+  (with (nm (symbol-name name)
          nf (length fields))
     `(do
        (def (,(symbol (append "make-" nm)) ,@fields)
@@ -11,8 +11,8 @@
        ,@(accumulate acc
            (w/uniq (g)
              (for x (enumerate fields 1)
-               (let (i (car x)
-                     f (cadr x))
+               (with (i (car x)
+                      f (cadr x))
                  (acc `(def (,(symbol (append nm "-" (symbol-name f))) ,g)
                          (vector-ref (rep ,g) ,i))))))))))
 

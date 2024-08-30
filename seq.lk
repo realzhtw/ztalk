@@ -6,7 +6,7 @@
 (def (seq? x) (or (null? x) (is-a x 'scons)))
 (def (seq-hd s) (car (rep s)))
 (def (seq-tl s)
-  (let (r (rep s))
+  (let r (rep s)
     (when (fn? (cdr r))
       (set-cdr r ((cdr r))))
     (cdr r)))

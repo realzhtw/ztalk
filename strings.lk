@@ -11,10 +11,10 @@
 
 (def (split-string s c)
   (accumulate-to-vector acc
-    (let (end (length s))
+    (let end (length s)
       (if (> end 0)
         ((afn (i)
-           (let (j (string-find-next s c i end))
+           (let j (string-find-next s c i end)
              (acc (substring s i j))
              (unless (null? j)
                (self (+ j 1)))))
