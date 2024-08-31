@@ -37,7 +37,7 @@
                (version<= version (lisp-implementation-version)))
     (die (format nil "Z-talk requires SBCL ~A." version))))
 
-(require-sbcl "2.4.5")
+(require-sbcl "2.4.4")
 
 (in-package ztalk)
 
