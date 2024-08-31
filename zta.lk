@@ -285,10 +285,11 @@
                            `(for-each ,xs (fn (,g) (let ,x ,g ,@body))))
                          (error "Can't destructure " x)))
 
-(def (append x &rest xs)
-  (if (string? x) (apply string-append (cons x xs))
-      (list? x)   (apply list-append (cons x xs))
-      (vector? x) (apply vector-append (cons x xs))))
+(def (append &rest xs)
+  (let x (car xs)
+    (if (string? x) (apply string-append xs)
+        (list? x)   (apply list-append xs)
+        (vector? x) (apply vector-append xs))))
 
 (macro (accumulate-reversed acc-fn &rest body)
   (w/uniq (gl)
@@ -332,6 +333,11 @@
   `(let ,var (open-input-string ,str)
      ,@body))
 
+(macro (with-output-to-string var &rest body)
+  `(let ,var (open-output-string)
+     ,@body
+     (get-output-string ,var)))
+
 (macro (with-input-from-file var path &rest body)
   `(let ,var (open-input-file ,path)
      (after (do ,@body) (close ,var))))
@@ -339,6 +345,24 @@
 (def (atom-delimiter? c)
   (or (whitespace c)
       (in c #\) #\( #\[ #\] #\{ #\})))
+
+(def void (annotate 'iomanip nil))
+(def (void? x) (is x void))
+(def flush (annotate 'iomanip nil))
+(def (flush? x) (is x flush))
+
+(def (fprint s &rest args)
+  (for x args
+    (if (void? x) true
+        (flush? x) (flush-output s)
+                   (cl-print x s))))
+
+(def (print &rest args)
+  (apply fprint (cons nil args)))
+
+(def (println &rest args)
+  (apply print args)
+  (print #\newline))
 
 (def (error msg &rest rest)
   (apply println (cons msg rest))
@@ -364,22 +388,50 @@
                       (acc nc))
                 (acc c)))))))
 
+(def (read-atom-as-string &opt s)
+  (if (peek-char s true)
+    (accumulate-to-string acc
+      (whiler c (peek-char s) (and c (not (atom-delimiter? c)))
+        (acc (read-char s))))))
+
+(def (testify x)
+  (if (fn? x)
+      x
+      (fn (y) (is x y))))
+
+(def (read-until test &opt s)
+  (let f (testify test)
+    (accumulate-to-string acc
+      (whiler c (peek-char s) (and c (not (f c)))
+        (acc (read-char s))))))
+
 (w/uniq (eof)
+
   (def (eof? x) (is x eof))
 
   (def (read-atom &opt s)
-    (if (peek-char s true)
-      (let str (accumulate-to-string acc
-                 (whiler c (peek-char s) (not (or (null? c) (atom-delimiter? c)))
-                   (acc (read-char s))))
-        (with-input-from-string ss str
-          (cl-read ss)))
-      eof))
+    (let str (read-atom-as-string s)
+      (if str
+        (with-input-from-string ss str (cl-read ss))
+        eof)))
+
+  (def (read-hash-value &opt s)
+    (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
+      (when (is (read-char s true) #\#)
+        (let str (with-output-to-string ss
+                   (case-let c (next-char)
+                     #\\ (let nc (next-char)
+                           (fprint ss #\# c nc (if (atom-delimiter? nc)
+                                                   void
+                                                   (read-until atom-delimiter? s))))
+                         (fprint ss #\# c (read-until atom-delimiter? s))))
+          (with-input-from-string ss str (cl-read ss))))))
 
   (def (read &opt s error-on-eof)
     (case-let c (peek-char s true)
       nil (if error-on-eof (error "Unexpected EOF.") eof)
       #\" (read-string s)
+      #\# (read-hash-value s)
       #\( (do (read-char s) (read-delimited-list #\) s))
       #\[ (do (read-char s) (cons 'vector (read-delimited-list #\] s)))
       #\{ (do (read-char s) (cons 'dict (read-delimited-list #\} s)))
@@ -390,14 +442,31 @@
                   (do (read-char s)
                       (list 'unquote-splicing (read s true)))
                   (list 'unquote (read s true))))
-          (if (is c #\")
-              (cl-read s eof)
-              (read-atom s)))))
+          (read-atom s)))
+)
 
 (def (load path)
   (with-input-from-file f path
     (whiler e (read f) (not (eof? e))
       (eval e))))
+
+(def (write-vector x &opt s)
+  (fprint s #\[)
+  (unless (= (vector-size x) 0)
+    (write (vector-ref x 0) s)
+    (for i (range 1 (vector-size x))
+      (fprint s #\space)
+      (write (vector-ref x i) s)))
+  (fprint s #\]))
+
+(def (write x &opt s)
+  (if (vector? x) (write-vector x s)
+      (symbol? x) (write-symbol x s)
+                  (cl-write x)))
+
+(def (writeln x &opt s)
+  (write x s)
+  (write-char #\newline s))
 
 (load "math.lk")
 (load "strings.lk")
@@ -410,8 +479,7 @@
 (def repl-prompt "ztalk> ")
 
 (def (print-repl-prompt)
-  (print repl-prompt)
-  (flush))
+  (print repl-prompt flush))
 
 (def (repl)
   (let prompt-and-read (fn ()

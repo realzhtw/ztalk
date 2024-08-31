@@ -226,6 +226,7 @@
 (defun ztalk-type (x)
   (cond ((tagged-p x)   (tagged-tag x))
         ((consp x)      '|lk|::|pair|)
+        ((null x)       '|lk|::|none|)
         ((symbolp x)    '|lk|::|symbol|)
         ((functionp x)  '|lk|::|fn|)
         ((characterp x) '|lk|::|char|)
@@ -303,6 +304,8 @@
 (zdefun equal (x y) (equal x y))
 (zexport gensym ())
 
+(zdefun integer? (x) (integerp x))
+
 (zdefun string? (x) (stringp x))
 (defun ztalk-string-ref (x i) (declare (type string x)) (aref x i))
 (zdefun string-ref (x i) (ztalk-string-ref x i))
@@ -373,8 +376,8 @@
 (zexport > (a b))
 (zexport >= (a b))
 (zdefun list-append (&rest xs) (apply #'append xs))
-(zdefun string-append (&rest xs) (apply #'concatenate (cons 'string xs)))
-(zdefun vector-append (&rest xs) (apply #'concatenate (cons 'vector xs)))
+(zdefun string-append (&rest xs) (apply #'concatenate 'string (mapcar #'string xs)))
+(zdefun vector-append (&rest xs) (apply #'concatenate 'vector xs))
 
 (dolist (f '(+ - * / vector))
   (eval `(zexport ,f (&rest xs))))
@@ -390,6 +393,7 @@
 (zdefun file? (x) (filep x))
 (zdefun open-input-string (s) (make-string-input-stream s))
 (zdefun open-output-string () (make-string-output-stream))
+(zdefun get-output-string (s) (get-output-stream-string s))
 
 (zdefun cl-read (&optional s eof) (ztalk-read s nil eof))
 (zdefun cl-load (path) (load path))
@@ -398,11 +402,13 @@
 (zdefun cl-read-char (&optional s) (read-char s nil nil))
 
 (zdefun write-char (c &optional s) (write-char c s))
-(zdefun write (x &optional s) (write x :stream s))
-(zdefun writeln (x &optional s) (write x :stream s) (terpri))
-(zdefun print (&rest args) (dolist (x args) (princ x)))
-(zdefun println (&rest args) (dolist (x args) (princ x)) (terpri) nil)
-(zdefun flush (&optional s) (finish-output s))
+(zdefun cl-write (x &optional s) (write x :stream s))
+(zdefun cl-print (x &optional s) (princ x s))
+(zdefun flush-output (&optional s) (finish-output s))
+
+(zdefun write-symbol (x &optional s)
+  (let ((*package* *ztalk-package*))
+    (write x :stream s)))
 
 (zdef argv sb-ext:*posix-argv*)
 (zdefun exit (&optional code) (sb-ext:quit :unix-status (or code 0)))
