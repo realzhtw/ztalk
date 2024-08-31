@@ -51,16 +51,23 @@
 
 (def (list-enumerate s n)
   (unless (null? s) 
-    (seq (list n (car s)) (enumerate (cdr s) (+ n 1)))))
+    (seq (list n (car s)) (list-enumerate (cdr s) (+ n 1)))))
 
 (def (seq-enumerate s n)
   (unless (null? s)
     (seq (list n (seq-hd s)) (seq-enumerate (seq-tl s) (+ n 1)))))
 
+(def (range-enumerate r n)
+  ((afn (i)
+     (when (< i (range-size r))
+       (seq (list (+ i n) (range-ref r i)) (self (+ i 1)))))
+   0))
+
 (def (enumerate x n)
-  (if (pair? x)
-      (list-enumerate x n)
-      (seq-enumerate x n)))
+  (if (pair? x)  (list-enumerate x n)
+      (seq? x)   (seq-enumerate x n)
+      (range? x) (range-enumerate x n)
+                 (error "Can't enumerate " x)))
 
 (def (inf-range start stride)
   (seq start (inf-range (+ start stride) stride)))
@@ -99,6 +106,8 @@
 (def (range? x) (is-a x 'range))
 (def (range-from r) (car (rep r)))
 (def (range-to r)   (cdr (rep r)))
+(def (range-ref r i) (+ (range-from r) i))
+(def (range-size r) (- (range-to r) (range-from r)))
 
 (def (range-for-each x f)
   ((afn (i)

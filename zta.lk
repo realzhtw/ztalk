@@ -280,7 +280,10 @@
        ,gd)))
 
 (macro (for x xs &rest body)
-  `(for-each ,xs (fn (,x) ,@body)))
+  (if (symbol? x)        `(for-each ,xs (fn (,x) ,@body))
+      (pair? x)          (w/uniq (g)
+                           `(for-each ,xs (fn (,g) (let ,x ,g ,@body))))
+                         (error "Can't destructure " x)))
 
 (def (append x &rest xs)
   (if (string? x) (apply string-append (cons x xs))
@@ -363,6 +366,7 @@
 
   (def (read &opt s error-on-eof)
     (case-let c (skip-space s)
+      nil (if error-on-eof (error "Unexpected EOF.") eof)
       #\( (do (read-char s) (read-delimited-list #\) s))
       #\[ (do (read-char s) (cons 'vector (read-delimited-list #\] s)))
       #\{ (do (read-char s) (cons 'dict (read-delimited-list #\} s)))
@@ -389,14 +393,15 @@
 (load "algorithms.lk")
 (load "sockets.lk")
 
+
 (def repl-prompt "ztalk> ")
 
 (def (print-repl-prompt)
   (print repl-prompt)
   (flush))
 
-(def (iirepl)
+(def (repl)
   (whiler e (do (print-repl-prompt) (read stdin)) (not (eof? e))
-    (println (eval e)))
-  (println "[repl done]")
-  (flush))
+    (println (eval e))))
+
+(repl)

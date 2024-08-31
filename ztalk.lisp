@@ -286,6 +286,8 @@
 (zdefun symbol (x) (intern x *ztalk-package*))
 (zdefun pair? (x) (consp x))
 (zdefun is (x y) (eq x y))
+(zdefun eq (x y) (eql x y))
+(zdefun equal (x y) (equal x y))
 (zexport gensym ())
 
 (zdefun string? (x) (stringp x))
@@ -386,6 +388,9 @@
 (zdefun println (&rest args) (dolist (x args) (princ x)) (terpri) nil)
 (zdefun flush (&optional s) (finish-output s))
 
+(zdef argv sb-ext:*posix-argv*)
+(zdefun exit (&optional code) (sb-ext:quit :unix-status (or code 0)))
+
 ; ztalk-reader
 (defvar *case-sensitive-readtable*)
 
@@ -441,5 +446,3 @@
       (format t "~S~%" (ztalk-eval x)))))
 
 (ztalk-load "zta.lk")
-
-(ztalk-repl)
