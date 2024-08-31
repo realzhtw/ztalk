@@ -312,6 +312,10 @@
                                 (self (cddr xs)))))
       content)))
 
+(def (read-char &opt s skip-space)
+  (if skip-space (peek-char s true))
+  (cl-read-char s))
+
 (def (read-line &opt s)
   (if (peek-char s)
     (accumulate-to-string acc
@@ -348,6 +352,18 @@
            (self (cons (read s true) rs))))
    nil))
 
+(def (read-string &opt s)
+  (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
+    (when (is (read-char s true) #\")
+      (accumulate-to-string acc
+        (whiler c (next-char) (isnt c #\")
+          (case c
+            #\\ (case-let nc (next-char)
+                  #\n (acc #\newline)
+                  #\t (acc #\tab)
+                      (acc nc))
+                (acc c)))))))
+
 (w/uniq (eof)
   (def (eof? x) (is x eof))
 
@@ -363,6 +379,7 @@
   (def (read &opt s error-on-eof)
     (case-let c (peek-char s true)
       nil (if error-on-eof (error "Unexpected EOF.") eof)
+      #\" (read-string s)
       #\( (do (read-char s) (read-delimited-list #\) s))
       #\[ (do (read-char s) (cons 'vector (read-delimited-list #\] s)))
       #\{ (do (read-char s) (cons 'dict (read-delimited-list #\} s)))
@@ -383,13 +400,12 @@
       (eval e))))
 
 (load "math.lk")
+(load "strings.lk")
 (load "seq.lk")
 (load "records.lk")
-(load "strings.lk")
 (load "algorithms.lk")
 (load "sys.lk")
 (load "sockets.lk")
-
 
 (def repl-prompt "ztalk> ")
 
@@ -398,7 +414,10 @@
   (flush))
 
 (def (repl)
-  (whiler e (do (print-repl-prompt) (read stdin)) (not (eof? e))
-    (println (eval e))))
+  (let prompt-and-read (fn ()
+                         (print-repl-prompt)
+                         (read))
+    (whiler e (prompt-and-read) (not (eof? e))
+      (writeln (eval e)))))
 
 (repl)

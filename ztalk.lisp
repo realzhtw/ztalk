@@ -63,27 +63,9 @@
 
 (defvar *ztalk-package* (make-package "lk"))
 
-(defun skip-space ()
-  (peek-char t nil nil)
-  nil)
-
-(defun read-char-if (p s)
-  (let ((c (peek-char nil nil nil)))
-    (and c
-      (cond ((characterp p) (and (char= c p) (read-char s)))
-            ((functionp p)  (and (funcall p c) (read-char s)))
-            (t              (error "char or predicate expected"))))))
-
-(defun sym-char-p (c)
-  (or (alphanumericp c) (char= c #\-)))
-
-(defun read-sym-char (&optional (s *standard-input*))
-  (read-char-if #'sym-char-p s))
-
-(defun read-atom ()
-  (with-output-to-string (s)
-    (awhile (read-sym-char)
-      (write-char it s))))
+(defun read-char-if (s c)
+  (if (eq (peek-char nil s nil) c)
+      (read-char s)))
 
 (declaim (ftype (function (&optional t t t) t) ztalk-read))
 (declaim (ftype (function (t) t) ztalk-load))
@@ -409,12 +391,15 @@
 (zdefun open-input-string (s) (make-string-input-stream s))
 (zdefun open-output-string () (make-string-output-stream))
 
-(zdefun cl-read (&optional s eof) (ztalk-read s eof))
+(zdefun cl-read (&optional s eof) (ztalk-read s nil eof))
 (zdefun cl-load (path) (load path))
 
 (zdefun peek-char (&optional s skip-space) (peek-char skip-space s nil))
-(zdefun read-char (&optional s) (read-char s nil nil))
+(zdefun cl-read-char (&optional s) (read-char s nil nil))
+
 (zdefun write-char (c &optional s) (write-char c s))
+(zdefun write (x &optional s) (write x :stream s))
+(zdefun writeln (x &optional s) (write x :stream s) (terpri))
 (zdefun print (&rest args) (dolist (x args) (princ x)))
 (zdefun println (&rest args) (dolist (x args) (princ x)) (terpri) nil)
 (zdefun flush (&optional s) (finish-output s))
@@ -428,7 +413,7 @@
 (defun ztalk-read-quoted (s c)
   (cond ((eq c #\') (list '|lk|::|quote| (read s t nil t)))
         ((eq c #\`) (list '|lk|::|quasiquote| (read s t nil t)))
-        ((eq c #\,) (if (read-char-if #\@ s)
+        ((eq c #\,) (if (read-char-if s #\@)
                         (list '|lk|::|unquote-splicing| (read s t nil t))
                         (list '|lk|::|unquote| (read s t nil t))))))
    
@@ -459,21 +444,6 @@
   (lambda (k e)
     (ztalk-eval e k)))
 
-(defun ztalk-load (path)
-  (with-open-file (*standard-input* path)
-    (while (peek-char t nil nil)
-      (ztalk-eval (ztalk-read)))))
-
-(defun prompt ()
-  (princ "lk> ")
-  (finish-output))
-
-(defun ztalk-repl ()
-  (while (progn
-           (prompt)
-           (peek-char t nil nil))
-    (let ((x (ztalk-read)))
-      ;(format t "Read:  ~S~%"  x)
-      (format t "~S~%" (ztalk-eval x)))))
-
-(ztalk-load "zta.lk")
+(with-open-file (f "zta.lk")
+  (while (peek-char t f nil)
+    (ztalk-eval (ztalk-read f))))
