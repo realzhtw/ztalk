@@ -324,10 +324,6 @@
       (is c #\newline)
       (is c #\return)))
 
-(def (skip-space &opt s)
-  (whiler c (peek-char s) (whitespace c)
-    (read-char s)))
-
 (macro (with-input-from-string var str &rest body)
   `(let ,var (open-input-string ,str)
      ,@body))
@@ -346,7 +342,7 @@
 
 (def (read-delimited-list d s)
   ((afn (rs)
-     (case (skip-space s)
+     (case (peek-char s true)
        nil (error "Expected " d)
        d   (do (read-char s) (reverse rs))
            (self (cons (read s true) rs))))
@@ -356,7 +352,7 @@
   (def (eof? x) (is x eof))
 
   (def (read-atom &opt s)
-    (if (skip-space s)
+    (if (peek-char s true)
       (let str (accumulate-to-string acc
                  (whiler c (peek-char s) (not (or (null? c) (atom-delimiter? c)))
                    (acc (read-char s))))
@@ -365,7 +361,7 @@
       eof))
 
   (def (read &opt s error-on-eof)
-    (case-let c (skip-space s)
+    (case-let c (peek-char s true)
       nil (if error-on-eof (error "Unexpected EOF.") eof)
       #\( (do (read-char s) (read-delimited-list #\) s))
       #\[ (do (read-char s) (cons 'vector (read-delimited-list #\] s)))

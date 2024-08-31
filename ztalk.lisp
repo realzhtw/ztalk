@@ -412,7 +412,7 @@
 (zdefun cl-read (&optional s eof) (ztalk-read s eof))
 (zdefun cl-load (path) (load path))
 
-(zdefun peek-char (&optional s) (peek-char nil s nil))
+(zdefun peek-char (&optional s skip-space) (peek-char skip-space s nil))
 (zdefun read-char (&optional s) (read-char s nil nil))
 (zdefun write-char (c &optional s) (write-char c s))
 (zdefun print (&rest args) (dolist (x args) (princ x)))
