@@ -23,7 +23,8 @@
 
 (zdefun socket-receive (s buf start end)
   (multiple-value-bind (b n addr)
-    (sb-bsd-sockets:socket-receive s (bslice buf start end) nil)
+                       (sb-bsd-sockets:socket-receive s (bslice buf start end) nil)
+    (declare (ignore b))
     (list n addr)))
 
 (zdefun socket-send (s addr buf start end)

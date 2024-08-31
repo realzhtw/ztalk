@@ -1,6 +1,5 @@
 (macro (record name &rest fields)
-  (with (nm (symbol-name name)
-         nf (length fields))
+  (with (nm (symbol-name name))
     `(do
        (def (,(symbol (append "make-" nm)) ,@fields)
          (annotate 'record

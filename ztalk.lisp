@@ -2,6 +2,43 @@
   (:use :cl)
   (:shadow compile))
 
+(defun die (msg)
+  (format t msg)
+  (sb-ext:quit :unix-status  1))
+
+(defun split-sequence (d s)
+  (let ((start 0)
+        (r nil))
+    (loop for end = (position d s :start start)
+          while end do
+            (push (subseq s start end) r)
+            (setq start (1+ end)))
+    (nreverse (cons (subseq s start) r))))
+
+(defun parse-version (s)
+  (mapcar #'parse-integer (split-sequence #\. s)))
+
+(defun lexicographic-compare (x y)
+  (cond ((null x) (if (null y) 0 -1))
+        ((null y) (if (null x) 0  1))
+        ((integerp (car x)) (cond ((= (car x) (car y))
+                                   (lexicographic-compare (cdr x) (cdr y)))
+                                  ((< (car x) (car y)) -1)
+                                  (t                    1)))
+       (t  (error "Can't compare versions."))))
+
+(defun version<= (s1 s2)
+  (let ((v1 (parse-version s1))
+        (v2 (parse-version s2)))
+    (<= (lexicographic-compare v1 v2) 0)))
+
+(defun require-sbcl (version)
+  (unless (and (string= (lisp-implementation-type) "SBCL")
+               (version<= version (lisp-implementation-version)))
+    (die (format nil "Z-talk requires SBCL ~A." version))))
+
+(require-sbcl "2.4.5")
+
 (in-package ztalk)
 
 (defmacro rfn (name params &rest body)
@@ -17,12 +54,6 @@
 (defmacro awhile (c &rest body)
   (w/uniq (f)
     `(funcall (rfn ,f () (let ((it ,c)) (when it ,@body (,f)))))))
-
-(defmacro after (x &rest xs)
-  (w/uniq (gx)
-    `(let ((,gx ,x))
-       ,@xs
-       ,gx)))
 
 (defun gensyms (n)
   (unless (zerop n)
@@ -328,7 +359,7 @@
        (equal (array-element-type x) '(unsigned-byte 8))))
 
 (zdefun bytes-ref (x i) (aref x i))
-(zdefun bytes-set (x i v) (seft (aref x i) v))
+(zdefun bytes-set (x i v) (setf (aref x i) v))
 (zdefun bytes-size (x) (length x))
 
 (zdefun make-adjustable-bytevector (&optional (n 0))
