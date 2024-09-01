@@ -202,6 +202,18 @@
                (quote ,(cadr (car params)))
                (fn ,(cons (car (car params)) (cdr params)) ,@body))))
 
+(def (vector-empty? x) (= (vector-size x) 0))
+(def (string-empty? x) (= (string-length x) 0))
+(def (dict-empty? x) (= (dict-size x) 0))
+
+(def (empty? x)
+  (if (pair? x) false
+      (null? x) true
+      (vector? x) (vector-empty? x)
+      (string? x) (string-empty? x)
+      (dict? x)   (dict-empty? x)
+                  (error 'empty "not a container")))
+
 (def (ref x k)
   (if (pair? x)   (list-ref x k)
       (vector? x) (vector-ref x k)
@@ -450,18 +462,36 @@
     (whiler e (read f) (not (eof? e))
       (eval e))))
 
+(def (make-padder s)
+  (let first true
+    (fn () (if first (set first false) (fprint s #\space)))))
+
+(macro (w/padder p s &rest body)
+  `(let ,p (make-padder ,s)
+     ,@body))
+
 (def (write-vector x &opt s)
   (fprint s #\[)
-  (unless (= (vector-size x) 0)
-    (write (vector-ref x 0) s)
-    (for i (range 1 (vector-size x))
-      (fprint s #\space)
-      (write (vector-ref x i) s)))
+  (w/padder pad s
+    (for elem x
+      (pad)
+      (write elem s)))
   (fprint s #\]))
+
+(def (write-dict x &opt s)
+  (fprint s #\{)
+  (w/padder pad s
+    (dict-for-each x (fn (key value)
+                       (pad)
+                       (write key s)
+                       (pad)
+                       (write value s))))
+  (fprint s #\}))
 
 (def (write x &opt s)
   (if (vector? x) (write-vector x s)
       (symbol? x) (write-symbol x s)
+      (dict? x)   (write-dict x s)
                   (cl-write x)))
 
 (def (writeln x &opt s)

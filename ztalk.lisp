@@ -284,10 +284,11 @@
       `(zdefun ,name ,params (apply #',name ,(cadr params)))
       `(zdefun ,name ,params ,(cons name params))))
 
-(zdef call/cc (lambda (k f)
-  (funcall f k (lambda (k2 k3)
-                 (declare (ignore k2))
-                 (funcall k k3)))))
+(zdef call/cc
+  (lambda (k f)
+    (funcall f k (lambda (k2 k3)
+                   (declare (ignore k2))
+                   (funcall k k3)))))
 
 (zdef apply (lambda (k f args)
   (apply f (cons k args))))
@@ -360,6 +361,12 @@
 (zdefun dict? (x) (hash-table-p x))
 (zdefun dict-ref (d k &optional v) (gethash k d v))
 (zdefun dict-set (d k v) (setf (gethash k d) v))
+(zdefun dict-size (d) (hash-table-count d))
+
+(zdef dict-for-each
+  (lambda (k d f)
+    (funcall k (maphash (lambda (key value)
+                          (funcall f #'identity key value)) d))))
 
 (zdefun load (path) (ztalk-load path))
 
