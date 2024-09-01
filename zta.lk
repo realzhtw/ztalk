@@ -358,16 +358,19 @@
   (or (whitespace c)
       (in c #\) #\( #\[ #\] #\{ #\})))
 
-(def void (annotate 'iomanip nil))
-(def (void? x) (is x void))
-(def flush (annotate 'iomanip nil))
-(def (flush? x) (is x flush))
+(macro (def-iomanip name f)
+  `(set ,name (annotate 'iomanip ,f)))
+
+(def (iomanip? x) (is-a x 'iomanip))
+
+(def-iomanip void (fn (s)))
+(def-iomanip flush (fn (s) (flush-output s)))
 
 (def (fprint s &rest args)
   (for x args
-    (if (void? x) true
-        (flush? x) (flush-output s)
-                   (cl-print x s))))
+    (if (iomanip? x)
+        ((rep x) s)
+        (cl-print x s))))
 
 (def (print &rest args)
   (apply fprint (cons nil args)))
