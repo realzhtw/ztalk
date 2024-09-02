@@ -70,7 +70,14 @@
          (self (cons (f (car xs)) rs) (cdr xs))))
    nil xs))
 
-(def (car-is p x) (is (car p) x))
+(macro (and &rest args)
+  (if (null? args)       'true
+      (null? (cdr args)) (car args)
+                         `(if ,(car args) (and ,@(cdr args)))))
+
+(def (car-is x y)
+  (and (pair? x)
+       (is (car x) y)))
 
 (macro (with bindings &rest body)
   ((fn (gen)
@@ -116,6 +123,13 @@
   `(with ,(intersperse names (list-map (fn (_) '(gensym)) names))
      ,@body))
 
+(macro (or &rest args)
+  (if (null? args)
+      'false
+      (w/uniq (g)
+        `(let ,g ,(car args)
+           (if ,g ,g (or ,@(cdr args)))))))
+
 (def (list-ref xs i)
   (if (= i 0)
       (car xs)
@@ -134,18 +148,6 @@
     `(let ,g (car ,l)
        (set ,l (cdr ,l))
        ,g)))
-
-(macro (and &rest args)
-  (if (null? args)       'true
-      (null? (cdr args)) (car args)
-                         `(if ,(car args) (and ,@(cdr args)))))
-
-(macro (or &rest args)
-  (if (null? args)
-      'false
-      (w/uniq (g)
-        `(let ,g ,(car args)
-           (if ,g ,g (or ,@(cdr args)))))))
 
 (macro (aand x &rest args)
   `(let it ,x
@@ -166,6 +168,18 @@
         (when ,cnd
           ,@body
           (,g))))))
+
+(def (bound-symbol? x)
+  (and (symbol? x)
+       (bound? x)))
+
+(def (macroexpand x)
+  (if (and (pair? x)
+           (bound-symbol? (car x))
+           (is-a (symbol-value (car x)) 'macro))
+      (apply (rep (symbol-value (car x))) (cdr x))
+      x))
+
 
 (macro (whiler var expr cnd &rest body)
   (w/uniq (iter)
@@ -291,11 +305,12 @@
        ,@body
        ,gd)))
 
-(macro (for x xs &rest body)
-  (if (symbol? x)        `(for-each ,xs (fn (,x) ,@body))
-      (pair? x)          (w/uniq (g)
-                           `(for-each ,xs (fn (,g) (let ,x ,g ,@body))))
-                         (error "Can't destructure " x)))
+(macro (for var xs &rest body)
+  (if (symbol? var)        `(for-each ,xs (fn (,var) ,@body))
+      (car-is var 'vector) (w/uniq (g)
+                           `(for-each ,xs (fn (,g) (let ,var ,g ,@body))))
+      (pair? var)          `(for-each ,xs (fn ,var ,@body))
+                           (error "Can't destructure " x)))
 
 (def (append &rest xs)
   (let x (car xs)

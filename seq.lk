@@ -125,6 +125,7 @@
   (if (vector? x) (vector-for-each x f)
       (string? x) (string-for-each x f)
       (list? x)   (list-for-each x f)
+      (dict? x)   (dict-for-each x f)
       (range? x)  (range-for-each x f)
       (seq? x)    (seq-for-each x f)))
 
