@@ -15,6 +15,9 @@
 
 (def (macro? x) (is-a x 'macro))
 
+(def (callable? x)
+  (proc? (rep x)))
+
 (def (cadr x) (car (cdr x)))
 (def (cddr x) (cdr (cdr x)))
 (def (caar x) (car (car x)))
@@ -425,7 +428,7 @@
         (acc (read-char s))))))
 
 (def (testify x)
-  (if (fn? x)
+  (if (proc? x)
       x
       (fn (y) (is x y))))
 

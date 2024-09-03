@@ -183,7 +183,7 @@
 (defun compile-call (x env k)
   (let ((args (gensyms (length x))))
     (compile-many x '() env
-      `(lambda ,args (funcall ,(car args) ,k ,@(cdr args))))))
+      `(lambda ,args (funcall (rep ,(car args)) ,k ,@(cdr args))))))
 
 (declaim (ftype (function (t t) t) expand-qquoted-list))
 
@@ -286,9 +286,10 @@
 
 (zdef call/cc
   (lambda (k f)
-    (funcall f k (lambda (k2 k3)
-                   (declare (ignore k2))
-                   (funcall k k3)))))
+    (funcall f k (annotate '|lk|::|cont|
+                           (lambda (k2 k3)
+                             (declare (ignore k2))
+                             (funcall k k3))))))
 
 (zdef apply (lambda (k f args)
   (apply f (cons k args))))
@@ -357,7 +358,7 @@
 (zdefun bytevector-push-back (x value) (vector-push-extend value x) x)
 (zdefun bytevector-capacity (x) (array-total-size x))
 
-(zdefun fn? (x) (functionp x))
+(zdefun proc? (x) (functionp x))
 
 (zdefun make-dict () (make-hash-table))
 (zdefun dict? (x) (hash-table-p x))
