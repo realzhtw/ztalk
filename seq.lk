@@ -20,6 +20,18 @@
       (list-map f x)
       (seq-map f x)))
 
+(def (integrate x0 + s)
+  (unless (null? s)
+    (seq x0 (integrate (+ x0 (seq-hd s)) + (seq-tl s)))))
+
+(def (as-seq x)
+  (if (vector? x) ((afn (i)
+                     (when (< i (vector-size x))
+                       (seq (vector-ref x i) (self (+ i 1)))))
+                   0)
+      (list? x)   ((afn (l) (unless (null? l) (seq (car l) (self (cdr l))))) x)
+                  (error 'as-seq "Can't assume it's a sequence.")))
+
 (def (list-first-n l n)
   (when (> n 0)
     (seq (car l) (list-first-n (cdr l) (- n 1)))))

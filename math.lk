@@ -1,1 +1,5 @@
 (cl-load "math.lisp")
+
+(def (div-mod a b)
+  [(div a b)
+   (mod a b)])
