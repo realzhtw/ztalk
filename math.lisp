@@ -4,3 +4,4 @@
 (zdefun bitwise-and (a b) (logand a b))
 (zdefun << (x n) (ash x n))
 (zdefun >> (x n) (ash x (- n)))
+(zexport random (n))

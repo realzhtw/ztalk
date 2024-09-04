@@ -383,13 +383,16 @@
   (or (whitespace c)
       (in c #\) #\( #\[ #\] #\{ #\} #\_ #\.)))
 
-(macro (def-iomanip name f)
-  `(set ,name (annotate 'iomanip ,f)))
+(def (make-iomanip f)
+  (annotate 'iomanip f))
+
+(macro (def-iomanip sig &rest body)
+  `(set ,(car sig) (make-iomanip (fn ,(cdr sig) ,@body))))
 
 (def (iomanip? x) (is-a x 'iomanip))
 
-(def-iomanip void (fn (s)))
-(def-iomanip flush (fn (s) (flush-output s)))
+(def-iomanip (void s))
+(def-iomanip (flush s) (flush-output s))
 
 (def (fprint s &rest args)
   (for x args

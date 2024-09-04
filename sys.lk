@@ -1,1 +1,10 @@
 (cl-load "sys.lisp")
+
+(def (time thunk)
+  (with (start-cpu-time (cpu-time)
+         start-real-time (real-time))
+    (let r (thunk)
+      (with (end-cpu-time (cpu-time)
+             end-real-time (real-time))
+        [r (- end-cpu-time start-cpu-time)
+           (- end-real-time start-real-time)]))))
