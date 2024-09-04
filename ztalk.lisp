@@ -231,6 +231,7 @@
         ((functionp x)  '|lk|::|fn|)
         ((characterp x) '|lk|::|char|)
         ((stringp x)    '|lk|::|string|)
+        ((bytesp x)     '|lk|::|bytes|)
         ((vectorp x)    '|lk|::|vector|)
         ((integerp x)   '|lk|::|int|)
         ((floatp x)     '|lk|::|float|)
@@ -343,9 +344,11 @@
   (make-array (length xs) :element-type '(unsigned-byte 8)
                           :initial-contents xs))
 
-(zdefun bytes? (x)
+(defun bytesp (x)
   (and (arrayp x)
        (equal (array-element-type x) '(unsigned-byte 8))))
+
+(zdefun bytes? (x) (bytesp x))
 
 (zdefun bytes-ref (x i) (aref x i))
 (zdefun bytes-set (x i v) (setf (aref x i) v))
