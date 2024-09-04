@@ -233,6 +233,7 @@
         ((stringp x)    '|lk|::|string|)
         ((bytesp x)     '|lk|::|bytes|)
         ((vectorp x)    '|lk|::|vector|)
+        ((hash-table-p x) '|lk|::|dict|)
         ((integerp x)   '|lk|::|int|)
         ((floatp x)     '|lk|::|float|)
         ((filep x)      '|lk|::|file|)

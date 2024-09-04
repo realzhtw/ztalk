@@ -54,6 +54,13 @@
          (self (cons (car xs) rs) (cdr xs))))
    nil xs))
 
+(def (remove x l)
+  ((afn (r l)
+     (if (null? l)      (reverse r)
+         (is x (car l)) (self r (cdr l))
+                        (self (cons (car l) r) (cdr l))))
+   nil l))
+
 (def (pair xs)
   ((afn (ps xs)
      (if (null? xs)       (reverse ps)
@@ -209,7 +216,7 @@
        (def ,vtable (make-dict))
        (def (,name ,@params)
          (let ,f (dict-ref ,vtable (type ,(car params)))
-           (,f ,@params))))))
+           (,f ,@(remove '&opt params)))))))
 
 (macro (defm sig &rest body)
   (withs (name (car sig)
@@ -232,11 +239,11 @@
                   (error 'empty "not a container")))
 
 (def (ref x k)
-  (if (pair? x)   (list-ref x k)
-      (vector? x) (vector-ref x k)
+  (if (vector? x) (vector-ref x k)
       (bytes? x)  (bytes-ref x k)
       (string? x) (string-ref x k)
-      (dict? x) (dict-ref x k)))
+      (dict? x)   (dict-ref x k)
+      (pair? x)   (list-ref x k)))
 
 (def (length x)
   (if (vector? x) (vector-size x)
@@ -374,7 +381,7 @@
 
 (def (atom-delimiter? c)
   (or (whitespace c)
-      (in c #\) #\( #\[ #\] #\{ #\})))
+      (in c #\) #\( #\[ #\] #\{ #\} #\_ #\.)))
 
 (macro (def-iomanip name f)
   `(set ,name (annotate 'iomanip ,f)))
@@ -387,7 +394,7 @@
 (def (fprint s &rest args)
   (for x args
     (if (iomanip? x)
-        ((rep x) s)
+        (x s)
         (cl-print x s))))
 
 (def (print &rest args)
@@ -445,7 +452,13 @@
   (def (read-atom &opt s)
     (let str (read-atom-as-string s)
       (if str
-        (with-input-from-string ss str (cl-read ss))
+        (let x (with-input-from-string ss str (cl-read ss))
+          (let c (peek-char s)
+            (if (in c #\_ #\.)
+              (do (read-char s)
+                  (let y (read s true)
+                    `(ref ,x ,(if (is c #\_) y (list 'quote y)))))
+              x)))
         eof)))
 
   (def (read-hash-value &opt s)
