@@ -6,6 +6,9 @@
               `(set ,(car sig)
                     (annotate 'macro (fn ,(cdr sig) ,@body))))))
 
+(macro (reset x)
+  `(set ,x nil))
+
 (macro (def sig &rest body)
   (if (symbol? sig)
       `(set ,sig ,@body)
@@ -178,6 +181,14 @@
         (when ,cnd
           ,@body
           (,g))))))
+
+(macro (repeat n &rest body)
+  (w/uniq (f i gn)
+    `((rfn (,f ,i)
+        (when (> ,i 0)
+          ,@body
+          (,f (- ,i 1))))
+      ,n)))
 
 (def (bound-symbol? x)
   (and (symbol? x)
@@ -499,30 +510,32 @@
     (whiler e (read f) (not (eof? e))
       (eval e))))
 
-(def (make-padder s)
-  (let first true
-    (fn () (if first (set first false) (fprint s #\space)))))
+(def (make-padding mortar)
+  (make-iomanip (let first true
+                  (fn (s)
+                    (if first (reset first) (fprint s mortar))))))
 
-(macro (w/padder p s &rest body)
-  `(let ,p (make-padder ,s)
+(macro (w/padding name mortar &rest body)
+  `(let ,name (make-padding ,mortar)
      ,@body))
+
+(def (print-all xs sep)
+  (w/padding p sep
+    (for x xs
+      (print p x))))
 
 (def (write-vector x &opt s)
   (fprint s #\[)
-  (w/padder pad s
+  (w/padding p #\space
     (for elem x
-      (pad)
-      (write elem s)))
+      (fprint s p elem)))
   (fprint s #\]))
 
 (def (write-dict x &opt s)
   (fprint s #\{)
-  (w/padder pad s
+  (w/padding p #\space
     (dict-for-each x (fn (key value)
-                       (pad)
-                       (write key s)
-                       (pad)
-                       (write value s))))
+                       (fprint s p key p value))))
   (fprint s #\}))
 
 (def (write x &opt s)
