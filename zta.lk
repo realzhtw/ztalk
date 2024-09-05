@@ -146,11 +146,6 @@
         `(let ,g ,(car args)
            (if ,g ,g (or ,@(cdr args)))))))
 
-(macro (after x &rest body)
-  (w/uniq (g)
-    `(let ,g ,x
-       ,@body ,g)))
-
 (def (make-param x)
   (let value x
     (fn (&opt new-value)
@@ -158,19 +153,13 @@
         value
         (set value new-value)))))
 
-(def (call-with-param param value thunk)
-  (let old-value (p)
-    (param value)
-    (after (thunk)
-      (param old-value))))
-
-(macro (w/param p value &rest body)
-  `(call-with-param ,p ,value (fn () ,@body)))
+(macro (def-param name value)
+  `(def ,name (make-param ,value)))
 
 (macro (point name &rest body)
   `(call/cc (fn (,name) ,@body)))
 
-(def (ignore e))
+(def (ignore &rest args) nil)
 
 (def current-exception-handler (make-param ignore))
 
@@ -180,14 +169,34 @@
       (current-exception-handler (fn (e)
                                    (current-exception-handler old-handler)
                                    (done (h e))))
-      (after (thunk)
-        (current-exception-handler old-handler)))))
+      (let value (thunk)
+        (current-exception-handler old-handler)
+        value))))
 
 (macro (guard handler &rest body)
   `(call-with-exception-handler ,handler (fn () ,@body)))
 
 (def (raise e)
   ((current-exception-handler) e))
+
+(def (protect thunk after-thunk)
+  (guard (fn (e) (after-thunk) (raise e))
+    (let value (thunk)
+      (after-thunk)
+      value)))
+
+(macro (after x &rest rest)
+  `(protect (fn () ,x)
+     (fn () ,@rest)))
+
+(def (call-with-param param value thunk)
+  (let old-value (param)
+    (param value)
+    (protect thunk
+      (fn () (param old-value)))))
+
+(macro (w/param param value &rest body)
+  `(call-with-param ,param ,value (fn () ,@body)))
 
 (def (list-ref xs i)
   (if (= i 0)
@@ -396,6 +405,26 @@
                                 (self (cddr xs)))))
       content)))
 
+(def-param stdin process-stdin)
+(def-param stdout process-stdout)
+(def-param stderr process-stderr)
+
+(macro (w/stdin s &rest body)
+  `(w/param stdin ,s ,@body))
+
+(macro (w/stdout s &rest body)
+  `(w/param stdout ,s ,@body))
+
+(macro (w/stderr s &rest body)
+  `(w/param stdout ,s ,@body))
+
+(def (default-exception-handler e)
+  (w/stdout (stderr)
+    (println "Caught unhandled exception: " e)
+    (exit 1)))
+
+(current-exception-handler default-exception-handler)
+
 (def (read-char &opt s skip-space)
   (if skip-space (peek-char s true))
   (cl-read-char s))
@@ -440,14 +469,12 @@
 (def-iomanip (void s))
 (def-iomanip (flush s) (flush-output s))
 
-(def (fprint s &rest args)
-  (for x args
-    (if (iomanip? x)
-        (x s)
-        (cl-print x s))))
-
 (def (print &rest args)
-  (apply fprint (cons nil args)))
+  (let s (stdout)
+    (for x args
+      (if (iomanip? x)
+          (x s)
+          (cl-print x s)))))
 
 (def (println &rest args)
   (apply print args)
@@ -455,7 +482,7 @@
 
 (def (error msg &rest rest)
   (apply println (cons msg rest))
-  (throw 'read-error))
+  (raise 'read-error))
 
 (def (read-delimited-list d s)
   ((afn (rs)
@@ -514,12 +541,13 @@
     (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
       (when (is (read-char s true) #\#)
         (let str (with-output-to-string ss
-                   (case-let c (next-char)
-                     #\\ (let nc (next-char)
-                           (fprint ss #\# c nc (if (atom-delimiter? nc)
-                                                   void
-                                                   (read-until atom-delimiter? s))))
-                         (fprint ss #\# c (read-until atom-delimiter? s))))
+                   (w/stdout ss
+                     (case-let c (next-char)
+                       #\\ (let nc (next-char)
+                             (print #\# c nc (if (atom-delimiter? nc)
+                                                     void
+                                                     (read-until atom-delimiter? s))))
+                           (print #\# c (read-until atom-delimiter? s)))))
           (with-input-from-string ss str (cl-read ss))))))
 
   (def (read &opt s error-on-eof)
@@ -548,7 +576,7 @@
 (def (make-padding mortar)
   (make-iomanip (let first true
                   (fn (s)
-                    (if first (reset first) (fprint s mortar))))))
+                    (if first (reset first) (write mortar s))))))
 
 (macro (w/padding name mortar &rest body)
   `(let ,name (make-padding ,mortar)
@@ -559,25 +587,40 @@
     (for x xs
       (print p x))))
 
+(def (string-for-each x f)
+  ((afn (i)
+     (when (< i (string-length x))
+       (f (string-ref x i))
+       (self (+ i 1))))
+   0))
+
+(def (write-string x s)
+  (string-for-each x (fn (c) (write-char c s))))
+
 (def (write-vector x &opt s)
-  (fprint s #\[)
-  (w/padding p #\space
-    (for elem x
-      (fprint s p elem)))
-  (fprint s #\]))
+  (w/stdout s
+    (print #\[)
+    (print-all x #\space)
+    (write #\])))
 
 (def (write-dict x &opt s)
-  (fprint s #\{)
+  (write-char #\{ s)
   (w/padding p #\space
     (dict-for-each x (fn (key value)
-                       (fprint s p key p value))))
-  (fprint s #\}))
+                       (write p s)
+                       (write key s)
+                       (write p s)
+                       (write value))))
+  (write-char #\} s))
 
 (def (write x &opt s)
-  (if (vector? x) (write-vector x s)
-      (symbol? x) (write-symbol x s)
-      (dict? x)   (write-dict x s)
-                  (cl-write x)))
+  (if (char? x)    (write-char x s)
+      (vector? x)  (write-vector x s)
+      (symbol? x)  (write (symbol-name x) s)
+      (string? x)  (write-string x s)
+      (dict? x)    (write-dict x s)
+      (iomanip? x) (x s)
+                   (cl-write x)))
 
 (def (writeln x &opt s)
   (write x s)

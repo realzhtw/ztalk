@@ -100,13 +100,6 @@
     (f (car x)) 
     (list-for-each (cdr x) f)))
 
-(def (string-for-each x f)
-  ((afn (i) 
-     (when (< i (string-length x))
-       (f (string-ref x i))
-       (self (+ i 1))))
-   0))
-
 (def (vector-for-each x f)
   ((afn (i)
      (when (< i (vector-size x))

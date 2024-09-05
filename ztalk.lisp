@@ -312,6 +312,7 @@
 
 (zdefun integer? (x) (integerp x))
 
+(zdefun char? (x) (characterp x))
 (zdefun string? (x) (stringp x))
 (defun ztalk-string-ref (x i) (declare (type string x)) (aref x i))
 (zdefun string-ref (x i) (ztalk-string-ref x i))
@@ -397,9 +398,9 @@
   (eval `(zexport ,f (&rest xs))))
 
 ;(zdef argv sb-ext:*posix-argv*)
-(zdef stdin *standard-input*)
-(zdef stdout *standard-output*)
-(zdef stderr *error-output*)
+(zdef process-stdin *standard-input*)
+(zdef process-stdout *standard-output*)
+(zdef process-stderr *error-output*)
 
 (zdefun open-input-file (path) (open path :direction :input))
 (zdefun open-output-file (path) (open path :direction :output))
