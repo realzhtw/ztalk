@@ -6,13 +6,13 @@
               `(set ,(car sig)
                     (annotate 'macro (fn ,(cdr sig) ,@body))))))
 
-(macro (reset x)
-  `(set ,x nil))
-
 (macro (def sig &rest body)
   (if (symbol? sig)
       `(set ,sig ,@body)
       `(set ,(car sig) (fn ,(cdr sig) ,@body))))
+
+(macro (do &rest body)
+  `((fn () ,@body)))
 
 (def (is-a x y) (is (type x) y))
 
@@ -31,6 +31,9 @@
 (def (null? x) (is x nil))
 (def (not x) (is x nil))
 (def (no x) (is x nil))
+
+(macro (reset x)
+  `(set ,x nil))
 
 (macro (rfn sig &rest body)
   ((fn (name params)
@@ -143,15 +146,53 @@
         `(let ,g ,(car args)
            (if ,g ,g (or ,@(cdr args)))))))
 
-(def (list-ref xs i)
-  (if (= i 0)
-      (car xs)
-      (list-ref (cdr xs) (- i 1))))
-
 (macro (after x &rest body)
   (w/uniq (g)
     `(let ,g ,x
        ,@body ,g)))
+
+(def (make-param x)
+  (let value x
+    (fn (&opt new-value)
+      (if (no new-value)
+        value
+        (set value new-value)))))
+
+(def (call-with-param param value thunk)
+  (let old-value (p)
+    (param value)
+    (after (thunk)
+      (param old-value))))
+
+(macro (w/param p value &rest body)
+  `(call-with-param ,p ,value (fn () ,@body)))
+
+(macro (point name &rest body)
+  `(call/cc (fn (,name) ,@body)))
+
+(def (ignore e))
+
+(def current-exception-handler (make-param ignore))
+
+(def (call-with-exception-handler h thunk)
+  (let old-handler (current-exception-handler)
+    (point done
+      (current-exception-handler (fn (e)
+                                   (current-exception-handler old-handler)
+                                   (done (h e))))
+      (after (thunk)
+        (current-exception-handler old-handler)))))
+
+(macro (guard handler &rest body)
+  `(call-with-exception-handler ,handler (fn () ,@body)))
+
+(def (raise e)
+  ((current-exception-handler) e))
+
+(def (list-ref xs i)
+  (if (= i 0)
+      (car xs)
+      (list-ref (cdr xs) (- i 1))))
 
 (macro (push x l)
   `(set ,l (cons ,x ,l)))
@@ -165,9 +206,6 @@
 (macro (aand x &rest args)
   `(let it ,x
      (and it ,@args)))
-
-(macro (do &rest body)
-  `((fn () ,@body)))
 
 (macro (when cnd &rest body)
   `(if ,cnd (do ,@body)))
@@ -210,9 +248,6 @@
             (do ,@body
                 (,iter))
             ,var))))))
-
-(macro (point name &rest body)
-  `(call/cc (fn (,name) ,@body)))
 
 (def (list? x)
   (or (pair? x)
