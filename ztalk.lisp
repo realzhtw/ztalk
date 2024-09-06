@@ -365,7 +365,11 @@
 
 (zdefun proc? (x) (functionp x))
 
-(zdefun make-dict () (make-hash-table))
+(zdefun make-dict (&optional test)
+  (cond ((null test)              (make-hash-table))
+        ((eq test '|lk|::|equal|) (make-hash-table :test 'equal))
+        (t                        (error "make-dict: wrong test type"))))
+
 (zdefun dict? (x) (hash-table-p x))
 (zdefun dict-ref (d k &optional v) (gethash k d v))
 (zdefun dict-set (d k v) (setf (gethash k d) v))

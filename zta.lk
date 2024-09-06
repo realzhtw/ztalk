@@ -157,7 +157,11 @@
   `(def ,name (make-param ,value)))
 
 (macro (point name &rest body)
-  `(call/cc (fn (,name) ,@body)))
+  (w/uniq (k)
+    `(call/cc
+       (fn (,k)
+         (let ,name (fn (&opt x) (,k x))
+           ,@body)))))
 
 (def (ignore &rest args) nil)
 
@@ -575,14 +579,20 @@
 
 (def import-paths (make-adjustable-vector))
 
-(def (import-module name)
-  (let filename (append name ".lk")
-    (point done
-      (for path import-paths
-        (let filepath (string-append path #\/ filename)
-          (if (file-exists filepath)
-            (done (load filepath)))))
-      (raise 'import-error))))
+(def import-module
+  (let loaded (make-dict 'equal)
+    (set loaded-modules loaded)
+    (fn (name &opt force)
+      (let filename (append name ".lk")
+        (point done
+          (for path import-paths
+            (let filepath (string-append path #\/ filename)
+              (when (file-exists filepath)
+                (when (or (not (dict-ref loaded filepath)) force)
+                  (load filepath)
+                  (dict-set loaded filepath true))
+                (done))))
+            (raise 'import-error))))))
 
 (macro (import module)
   `(import-module (symbol-name (quote ,module))))
