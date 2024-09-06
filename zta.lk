@@ -709,4 +709,14 @@
       (writeln (guard on-error
                  (eval e))))))
 
+(for-len i argv
+  (let arg (ref argv i)
+    (if (or (equal arg "-l")
+            (equal arg "--load")) (load (ref argv (+ i 1)))
+        (or (equal arg "-e")
+            (equal arg "--eval")) (with-input-from-string s (ref argv (+ i 1))
+                                    (w/stdin s
+                                      (println (read e))))
+                                  (
+
 (repl)
