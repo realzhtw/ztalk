@@ -75,6 +75,22 @@
                (sort N p n))))
        3 1 2))))
 
+(def (vector-lower-bound v start end x)
+  (if (< start end)
+      (let m (div (+ start end) 2)
+        (if (<= x (vector-ref v m))
+            (vector-lower-bound v start m x)
+            (vector-lower-bound v (+ m 1) end x)))
+      start))
+
+(def (vector-upper-bound v start end x)
+  (if (< start end)
+      (let m (div (+ start end) 2)
+        (if (< x (vector-ref v m))
+            (vector-upper-bound v start m x)
+            (vector-upper-bound v (+ m 1) end x)))
+      start))
+
 (def (list-sorted? l)
   (let reduce (afn (x rest)
                 (or (null? rest)
