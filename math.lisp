@@ -2,6 +2,7 @@
 (zdefun log (x base) (log x base))
 (zdefun sqrt (x) (sqrt x))
 (zdefun bitwise-and (a b) (logand a b))
+(zdefun bitwise-or (a b) (logior a b))
 (zdefun << (x n) (ash x n))
 (zdefun >> (x n) (ash x (- n)))
 (zexport random (n))

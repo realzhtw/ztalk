@@ -71,7 +71,7 @@
                    (if (< n 2)
                      (self (+ i 1) (<< p 1) 0)
                      (self (+ i 1) (+ (<< p (- n 1)) 1) 1))))
-           (do (trinkle (- N 1) p n)
+           (do (trinkle (- N 1) (bitwise-or p 1) n)
                (sort N p n))))
        3 1 2))))
 
