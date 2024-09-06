@@ -428,6 +428,8 @@
 (zdef argv sb-ext:*posix-argv*)
 (zdefun exit (&optional code) (sb-ext:quit :unix-status (or code 0)))
 
+(zdefun file-exists (p) (probe-file p))
+
 ; ztalk-reader
 (defvar *case-sensitive-readtable*)
 

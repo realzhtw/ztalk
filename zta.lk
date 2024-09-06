@@ -573,6 +573,20 @@
     (whiler e (read f) (not (eof? e))
       (eval e))))
 
+(def import-paths (make-adjustable-vector))
+
+(def (import-module name)
+  (let filename (append name ".lk")
+    (point done
+      (for path import-paths
+        (let filepath (string-append path #\/ filename)
+          (if (file-exists filepath)
+            (done (load filepath)))))
+      (raise 'import-error))))
+
+(macro (import module)
+  `(import-module (symbol-name (quote ,module))))
+
 (def (make-padding mortar)
   (make-iomanip (let first true
                   (fn (s)
