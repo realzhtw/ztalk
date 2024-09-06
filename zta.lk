@@ -691,10 +691,13 @@
   (print repl-prompt flush))
 
 (def (repl)
-  (let prompt-and-read (fn ()
-                         (print-repl-prompt)
-                         (read))
+  (with (prompt-and-read (fn ()
+                          (print-repl-prompt)
+                          (read))
+         on-error        (fn (e)
+                           (println "Unhandled exception: " e)))
     (whiler e (prompt-and-read) (not (eof? e))
-      (writeln (eval e)))))
+      (writeln (guard on-error
+                 (eval e))))))
 
 (repl)
