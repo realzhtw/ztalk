@@ -243,6 +243,15 @@
           (,f (- ,i 1))))
       ,n)))
 
+(macro (for-len var x &rest body)
+  (w/uniq (iter n)
+    `(let ,n (length x)
+      ((rfn (,iter ,var)
+         (when (< ,var ,n)
+           ,@body
+           (,iter (+ ,var 1))))
+       0))))
+
 (def (bound-symbol? x)
   (and (symbol? x)
        (bound? x)))
