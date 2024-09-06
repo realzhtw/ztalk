@@ -310,6 +310,10 @@
       (string? x) (string-length x)
       (list? x)   (list-length x)))
 
+(macro (if-let var expr &rest rest)
+  `(let ,var ,expr
+     (if ,var ,@rest)))
+
 (macro (in x &rest xs)
   (w/uniq (g)
     `(let ,g ,x
@@ -571,6 +575,22 @@
                   (list 'unquote (read s true))))
           (read-atom s)))
 )
+
+(def (string-rfind-next s c start)
+  (let test (testify c)
+    ((afn (i)
+      (when (>= i 0)
+        (if (test (string-ref s i))
+            i
+            (self (- i 1)))))
+     start)))
+
+(def (string-rfind s c) (string-rfind-next s c (- (length s) 1)))
+
+(def (path-dirname p)
+  (if-let i (string-rfind p #\/)
+    (substring p 0 i)
+    p))
 
 (def (load path)
   (with-input-from-file f path

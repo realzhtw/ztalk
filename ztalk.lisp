@@ -401,7 +401,6 @@
 (dolist (f '(+ - * / vector))
   (eval `(zexport ,f (&rest xs))))
 
-;(zdef argv sb-ext:*posix-argv*)
 (zdef process-stdin *standard-input*)
 (zdef process-stdout *standard-output*)
 (zdef process-stderr *error-output*)
@@ -429,7 +428,7 @@
   (let ((*package* *ztalk-package*))
     (write x :stream s)))
 
-(zdef argv sb-ext:*posix-argv*)
+(zdef argv (apply #'vector (namestring *load-pathname*) (cdr sb-ext:*posix-argv*)))
 (zdefun exit (&optional code) (sb-ext:quit :unix-status (or code 0)))
 
 (zdefun file-exists (p) (probe-file p))
