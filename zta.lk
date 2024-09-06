@@ -146,12 +146,14 @@
         `(let ,g ,(car args)
            (if ,g ,g (or ,@(cdr args)))))))
 
-(def (make-param x)
-  (let value x
-    (fn (&opt new-value)
-      (if (no new-value)
-        value
-        (set value new-value)))))
+(def make-param
+  (let sentinel (gensym)
+    (fn (x)
+      (let value x
+        (fn (&opt (new-value sentinel))
+          (if (is new-value sentinel)
+            value
+            (set value new-value)))))))
 
 (macro (def-param name value)
   `(def ,name (make-param ,value)))
@@ -165,7 +167,7 @@
 
 (def (ignore &rest args) nil)
 
-(def current-exception-handler (make-param ignore))
+(def-param current-exception-handler ignore)
 
 (def (call-with-exception-handler h thunk)
   (let old-handler (current-exception-handler)
@@ -413,6 +415,8 @@
                                 (self (cddr xs)))))
       content)))
 
+(def-param current-source-file nil)
+
 (def-param stdin process-stdin)
 (def-param stdout process-stdout)
 (def-param stderr process-stderr)
@@ -593,9 +597,10 @@
     p))
 
 (def (load path)
-  (with-input-from-file f path
-    (whiler e (read f) (not (eof? e))
-      (eval e))))
+  (w/param current-source-file path
+    (with-input-from-file f path
+      (whiler e (read f) (not (eof? e))
+        (eval e)))))
 
 (def import-paths (make-adjustable-vector))
 
