@@ -604,6 +604,8 @@
 
 (def import-paths (make-adjustable-vector))
 
+(push-back import-paths (path-dirname (ref argv 0)))
+
 (def import-module
   (let loaded (make-dict 'equal)
     (set loaded-modules loaded)
