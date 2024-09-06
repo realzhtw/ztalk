@@ -19,3 +19,12 @@
              (unless (null? j)
                (self (+ j 1)))))
          0)))))
+
+(def (starts-with s pref)
+  (and (<= (length pref) (length s))
+       (point ret
+         (for-len i pref
+           (if (not (eq (string-ref s i)
+                        (string-ref pref i)))
+               (ret false)))
+         true)))

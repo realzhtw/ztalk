@@ -245,12 +245,12 @@
 
 (macro (for-len var x &rest body)
   (w/uniq (iter n)
-    `(let ,n (length x)
-      ((rfn (,iter ,var)
-         (when (< ,var ,n)
-           ,@body
-           (,iter (+ ,var 1))))
-       0))))
+    `(let ,n (length ,x)
+       ((rfn (,iter ,var)
+          (when (< ,var ,n)
+            ,@body
+            (,iter (+ ,var 1))))
+        0))))
 
 (def (bound-symbol? x)
   (and (symbol? x)
@@ -388,6 +388,22 @@
              ,acc-fn (fn (k v) (dict-set ,gd k v)))
        ,@body
        ,gd)))
+
+(def (vector-for-each x f)
+  ((afn (i)
+     (when (< i (vector-size x))
+       (f (vector-ref x i))
+       (self (+ i 1))))
+   0))
+
+(def (for-each x f)
+  (if (vector? x) (vector-for-each x f)
+      (string? x) (string-for-each x f)
+      (list? x)   (list-for-each x f)
+      (dict? x)   (dict-for-each x f)
+      (range? x)  (range-for-each x f)
+      (seq? x)    (seq-for-each x f)
+                  (raise 'generic-type-error)))
 
 (macro (for var xs &rest body)
   (if (symbol? var)        `(for-each ,xs (fn (,var) ,@body))
@@ -686,13 +702,13 @@
   (write x s)
   (write-char #\newline s))
 
-(load "math.lk")
-(load "strings.lk")
-(load "seq.lk")
-(load "records.lk")
-(load "algorithms.lk")
-(load "sys.lk")
-(load "sockets.lk")
+(import math)
+(import strings)
+(import seq)
+(import records)
+(import algorithms)
+(import sys)
+(import sockets)
 
 (def repl-prompt "ztalk> ")
 
@@ -708,15 +724,5 @@
     (whiler e (prompt-and-read) (not (eof? e))
       (writeln (guard on-error
                  (eval e))))))
-
-(for-len i argv
-  (let arg (ref argv i)
-    (if (or (equal arg "-l")
-            (equal arg "--load")) (load (ref argv (+ i 1)))
-        (or (equal arg "-e")
-            (equal arg "--eval")) (with-input-from-string s (ref argv (+ i 1))
-                                    (w/stdin s
-                                      (println (read e))))
-                                  (
 
 (repl)

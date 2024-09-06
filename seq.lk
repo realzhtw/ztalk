@@ -100,13 +100,6 @@
     (f (car x)) 
     (list-for-each (cdr x) f)))
 
-(def (vector-for-each x f)
-  ((afn (i)
-     (when (< i (vector-size x))
-       (f (vector-ref x i))
-       (self (+ i 1)))) 
-   0))
-
 (def (range a b) (annotate 'range (cons a b)))
 (def (range? x) (is-a x 'range))
 (def (range-from r) (car (rep r)))
@@ -125,14 +118,6 @@
   (unless (null? s)
     (f (seq-hd s))
     (seq-for-each (seq-tl s) f)))
-
-(def (for-each x f)
-  (if (vector? x) (vector-for-each x f)
-      (string? x) (string-for-each x f)
-      (list? x)   (list-for-each x f)
-      (dict? x)   (dict-for-each x f)
-      (range? x)  (range-for-each x f)
-      (seq? x)    (seq-for-each x f)))
 
 (def (hd s) 
   (if (pair? s) 
