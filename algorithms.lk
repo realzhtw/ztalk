@@ -13,7 +13,7 @@
      (set ,p (>> ,p 1))
      (set ,n (+ ,n 1))))
 
-(def (sort v)
+(def (vector-smoothsort sort v)
   (with (lt (fn (i j) (< (vector-ref v i)
                         (vector-ref v j)))
          swap (fn (i j) (let tmp (vector-ref v i)
@@ -105,6 +105,15 @@
            (insert ub i x)
            (self (+ i 1)))))
      0)))
+
+(def (vector-sort x)
+  (if (< (length x) 150)
+      (vector-insertsort x)
+      (vector-smoothsort x)))
+
+(def (sort x)
+  (if (vector? x) (vector-sort x)
+                  (raise 'generic-type-error)))
 
 (def (list-sorted? l)
   (let reduce (afn (x rest)
