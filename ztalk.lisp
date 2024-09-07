@@ -68,7 +68,6 @@
       (read-char s)))
 
 (declaim (ftype (function (&optional t t t) t) ztalk-read))
-(declaim (ftype (function (t) t) ztalk-load))
 
 (defvar *free-vars*)
 
@@ -380,8 +379,6 @@
     (funcall k (maphash (lambda (key value)
                           (funcall f #'identity key value)) d))))
 
-(zdefun load (path) (ztalk-load path))
-
 (zdefun div (a b) (floor a b))
 (zexport mod (a b))
 (zexport cons (a b))
@@ -429,6 +426,7 @@
     (write x :stream s)))
 
 (zdef argv (apply #'vector (namestring *load-pathname*) (cdr sb-ext:*posix-argv*)))
+
 (zdefun exit (&optional code) (sb-ext:quit :unix-status (or code 0)))
 
 (zdefun file-exists (p) (probe-file p))
@@ -470,6 +468,13 @@
   (lambda (k e)
     (ztalk-eval e k)))
 
-(with-open-file (f "zta.lk")
-  (while (peek-char t f nil)
-    (ztalk-eval (ztalk-read f))))
+(defparameter ztalk-bootstrap
+  (make-pathname :directory (pathname-directory *load-pathname*)
+                 :name "zta.lk"))
+
+(defun ztalk-load (path)
+  (with-open-file (f path)
+    (while (peek-char t f nil)
+      (ztalk-eval (ztalk-read f)))))
+
+(ztalk-load ztalk-bootstrap)
