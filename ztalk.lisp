@@ -309,6 +309,9 @@
 (zdefun equal (x y) (equal x y))
 (zexport gensym ())
 
+(require 'sb-introspect)
+(zdefun fn-params (f) (cdr (sb-introspect:function-lambda-list f)))
+
 (zdefun integer? (x) (integerp x))
 
 (zdefun char? (x) (characterp x))

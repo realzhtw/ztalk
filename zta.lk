@@ -701,6 +701,20 @@
 
 (def-method (write (x iomanip) s) (x s))
 
+(def-method (write (x pair) s)
+  (w/stdout s
+    (print #\()
+    (print-all x)
+    (print #\))))
+
+(def-method (write (x macro) s)
+  (w/stdout s
+    (print "<macro " (fn-params (rep x)) #\>)))
+
+(def-method (write (x fn) s)
+  (w/stdout s
+    (print "<fn " (fn-params x) #\>)))
+
 (import math)
 (import strings)
 (import seq)

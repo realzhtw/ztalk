@@ -16,3 +16,12 @@
                          (vector-ref (rep ,g) ,i))))))))))
 
 (def (record? x) (is-a x 'record))
+
+(def-method (write (x record) s)
+  (w/stdout s
+    (let r (rep x)
+      (print "<record:" (ref r 0) " [")
+      (w/padding p #\space
+        (for i (range 1 (length r))
+          (print p (ref r i))))
+      (print "]>"))))
