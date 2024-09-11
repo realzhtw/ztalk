@@ -296,7 +296,7 @@
   (apply f (cons k args))))
 
 (zexport annotate (tag x))
-(zdefun type (x) (ztalk-type x))
+(zdef type (lambda (k x) (declare (inline ztalk-type)) (funcall k (ztalk-type x))))
 (zexport rep (x))
 (zdefun symbol? (x) (and (symbolp x) (not (eq x nil)) (not (eq x t))))
 (zexport symbol-name (x))

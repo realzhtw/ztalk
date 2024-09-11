@@ -155,7 +155,7 @@
             value
             (set value new-value)))))))
 
-(macro (def-param name value)
+(macro (defp name value)
   `(def ,name (make-param ,value)))
 
 (macro (point name &rest body)
@@ -167,7 +167,7 @@
 
 (def (ignore &rest args) nil)
 
-(def-param current-exception-handler ignore)
+(defp current-exception-handler ignore)
 
 (def (call-with-exception-handler h thunk)
   (let old-handler (current-exception-handler)
@@ -277,7 +277,7 @@
   (or (pair? x)
       (null? x)))
 
-(macro (defg sig)
+(macro (def-generic sig &rest body)
   (withs (name (car sig)
           params (cdr sig)
           vtable (symbol (append (symbol-name name) "-vtable"))
@@ -286,15 +286,19 @@
        (def ,vtable (make-dict))
        (def (,name ,@params)
          (let ,f (dict-ref ,vtable (type ,(car params)))
-           (,f ,@(remove '&opt params)))))))
+           (if ,f
+             (,f ,@(remove '&opt params))
+             ,(if (no body)
+                '(raise 'generic-not-defined)
+                `(do ,@body))))))))
 
-(macro (defm sig &rest body)
+(macro (def-method sig &rest body)
   (withs (name (car sig)
           params (cdr sig)
           vtable (symbol (append (symbol-name name) "-vtable")))
     `(dict-set ,vtable
                (quote ,(cadr (car params)))
-               (fn ,(cons (car (car params)) (cdr params)) ,@body))))
+               (fn ,(cons (caar params) (cdr params)) ,@body))))
 
 (def (vector-empty? x) (= (vector-size x) 0))
 (def (string-empty? x) (= (string-length x) 0))
@@ -440,11 +444,11 @@
                                 (self (cddr xs)))))
       content)))
 
-(def-param current-source-file nil)
+(defp current-source-file nil)
 
-(def-param stdin process-stdin)
-(def-param stdout process-stdout)
-(def-param stderr process-stderr)
+(defp stdin process-stdin)
+(defp stdout process-stdout)
+(defp stderr process-stderr)
 
 (macro (w/stdin s &rest body)
   `(w/param stdin ,s ,@body))
@@ -509,9 +513,7 @@
 (def (print &rest args)
   (let s (stdout)
     (for x args
-      (if (iomanip? x)
-          (x s)
-          (cl-print x s)))))
+      (write x s))))
 
 (def (println &rest args)
   (apply print args)
@@ -658,7 +660,7 @@
   `(let ,name (make-padding ,mortar)
      ,@body))
 
-(def (print-all xs sep)
+(def (print-all xs &opt (sep #\space))
   (w/padding p sep
     (for x xs
       (print p x))))
@@ -673,34 +675,31 @@
 (def (write-string x s)
   (string-for-each x (fn (c) (write-char c s))))
 
-(def (write-vector x &opt s)
+(def-generic (write x s) (cl-write x s))
+
+(def-method (write (x string) s) (write-string x s))
+
+(def-method (write (x vector) s)
   (w/stdout s
     (print #\[)
-    (print-all x #\space)
-    (write #\])))
+    (print-all x)
+    (print #\])))
 
-(def (write-dict x &opt s)
+(def-method (write (x dict) s)
   (write-char #\{ s)
   (w/padding p #\space
     (dict-for-each x (fn (key value)
                        (write p s)
                        (write key s)
                        (write p s)
-                       (write value))))
+                       (write value s))))
   (write-char #\} s))
 
-(def (write x &opt s)
-  (if (char? x)    (write-char x s)
-      (vector? x)  (write-vector x s)
-      (symbol? x)  (write (symbol-name x) s)
-      (string? x)  (write-string x s)
-      (dict? x)    (write-dict x s)
-      (iomanip? x) (x s)
-                   (cl-write x)))
+(def-method (write (x char) s) (write-char x s))
 
-(def (writeln x &opt s)
-  (write x s)
-  (write-char #\newline s))
+(def-method (write (x symbol) s) (write-string (symbol-name x) s))
+
+(def-method (write (x iomanip) s) (x s))
 
 (import math)
 (import strings)
@@ -717,12 +716,12 @@
 
 (def (repl)
   (with (prompt-and-read (fn ()
-                          (print-repl-prompt)
-                          (read))
+                           (print-repl-prompt)
+                           (read))
          on-error        (fn (e)
                            (println "Unhandled exception: " e)))
     (whiler e (prompt-and-read) (not (eof? e))
-      (writeln (guard on-error
+      (println (guard on-error
                  (eval e))))))
 
 (repl)

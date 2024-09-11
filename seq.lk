@@ -1,9 +1,9 @@
-(def (scons a b) (annotate 'scons (cons a b)))
+(def (scons a b) (annotate 'seq (cons a b)))
 
 (macro (seq hd tl)
   `(scons ,hd (fn () ,tl)))
 
-(def (seq? x) (or (null? x) (is-a x 'scons)))
+(def (seq? x) (or (null? x) (is-a x 'seq)))
 (def (seq-hd s) (car (rep s)))
 (def (seq-tl s)
   (let r (rep s)
@@ -37,7 +37,7 @@
     (seq (car l) (list-first-n (cdr l) (- n 1)))))
 
 (def (seq-first-n s n)
-  (when (> n 0)
+  (when (and s (> n 0))
     (seq (seq-hd s) (seq-first-n (seq-tl s) (- n 1)))))
 
 (def (seq-nth s n)
@@ -128,3 +128,11 @@
   (if (pair? s)
       (cdr s)
       (seq-tl s)))
+
+(defp seq-print-limit 3)
+
+(def-method (write (x seq) s)
+  (w/stdout s
+    (print #\()
+    (print-all (seq-first-n x (seq-print-limit)))
+    (print " ...)")))
