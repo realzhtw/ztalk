@@ -1,0 +1,34 @@
+(def (parse-struct-spec spec)
+  (with (fields         nil
+         mutable-fields nil)
+    ((afn (xs i)
+       (unless (null? xs)
+         (if (car-is xs '&mutable)
+             (do (push [i (cadr xs)] mutable-fields)
+                 (push (cadr xs) fields)
+                 (self (cddr xs) (+ i 1)))
+             (do (push (car xs) fields)
+                 (self (cdr xs) (+ i 1)))))) spec 0)
+    [(reverse fields) mutable-fields]))
+
+(macro (struct name &rest spec)
+  (let nm (symbol-name name)
+    (with (constructor (symbol (append "make-" nm))
+           type-test   (symbol (append nm "?"))
+           getter      (fn (field) (symbol (append nm "-" (symbol-name field))))
+           setter      (fn (field) (symbol (append nm "-set-" (symbol-name field))))
+           [fields mutable-fields] (parse-struct-spec spec))
+      `(do
+         (def (,constructor ,@fields)
+           (annotate (quote ,name) (vector ,@fields)))
+
+         (def (,type-test x) (is-a x (quote ,name)))
+
+         ,@(accumulate acc
+             (for [i field] (enumerate fields 0)
+               (acc `(def (,(getter field) x) (vector-ref (rep x) ,i)))))
+
+         ,@(accumulate acc
+             (for [i field] mutable-fields
+               (acc `(def (,(setter field) x val)
+                       (vector-set (rep x) ,i val)))))))))

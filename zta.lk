@@ -718,6 +718,7 @@
 (import math)
 (import strings)
 (import seq)
+(import struct)
 (import records)
 (import algorithms)
 (import sys)
