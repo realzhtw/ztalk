@@ -1,7 +1,7 @@
 (struct output-stream
     backend
-    write
-    close
+    backend-write
+    backend-close
     buffer
     &mutable buf-wrpos
     &mutable is-open)
@@ -22,16 +22,16 @@
 (def (output-stream-buffer-empty? os)
   (= (output-stream-buffer-wrpos os) 0))
 
-(def (output-stream-backend-write os buf start end)
-  ((output-stream-write os) (output-stream-backend os) buf start end))
+(def (output-stream-write-to-backend os buf start end)
+  ((output-stream-backend-write os) (output-stream-backend os) buf start end))
 
 (def (output-stream-close-backend os)
-  ((output-stream-cclose os) (output-stream-backend os)))
+  ((output-stream-backend-close os) (output-stream-backend os)))
 
 (def (output-stream-advance-buf-wrpos os n)
   (output-stream-set-buf-wrpos os (+ (output-stream-buf-wrpos os) n)))
 
-(def (output-stream-write-to-buf os buf start end)
+(def (output-stream-write-to-buffer os buf start end)
   (let n (min (- end start) (output-stream-buffer-space-left os))
     (copy-bytes (output-stream-buffer os) (output-stream-buf-wrpos os)
                 buf start end)
@@ -46,7 +46,7 @@
 
 (def (output-stream-write-some-bytes os buf start end)
   (if (output-stream-buffered? os)
-      (let n (output-stream-write-to-buf os buf start end)
+      (let n (output-stream-write-to-buffer os buf start end)
         (if (output-stream-buffer-full? os)
           (flush-output-stream os))
         n)

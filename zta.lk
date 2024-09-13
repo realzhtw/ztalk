@@ -278,7 +278,7 @@
 (macro (def-generic sig &rest body)
   (withs (name (car sig)
           params (cdr sig)
-          vtable (symbol (append (symbol-name name) "-vtable"))
+          vtable (symbol (string-append (symbol-name name) "-vtable"))
           f (gensym))
     `(do
        (def ,vtable (make-dict))
@@ -287,13 +287,13 @@
            (if ,f
              (,f ,@(remove '&opt params))
              ,(if (no body)
-                '(raise 'generic-not-defined)
+                `(error ,(car params) 'generic-not-defined)
                 `(do ,@body))))))))
 
 (macro (def-method sig &rest body)
   (withs (name (car sig)
           params (cdr sig)
-          vtable (symbol (append (symbol-name name) "-vtable")))
+          vtable (symbol (string-append (symbol-name name) "-vtable")))
     `(dict-set ,vtable
                (quote ,(cadr (car params)))
                (fn ,(cons (caar params) (cdr params)) ,@body))))
@@ -398,21 +398,22 @@
        (self (+ i 1))))
    0))
 
-(def (for-each x f)
-  (if (vector? x) (vector-for-each x f)
-      (string? x) (string-for-each x f)
-      (list? x)   (list-for-each x f)
-      (dict? x)   (dict-for-each x f)
-      (range? x)  (range-for-each x f)
-      (seq? x)    (seq-for-each x f)
-                  (raise 'generic-type-error)))
+(def-generic (for-each x f))
+
+(def-method (for-each (x vector) f) (vector-for-each x f))
+(def-method (for-each (x string) f) (string-for-each x f))
+(def-method (for-each (x null) f)   nil)
+(def-method (for-each (x pair) f)   (list-for-each x f))
+(def-method (for-each (x dict) f)   (dict-for-each x f))
+(def-method (for-each (x range) f)  (range-for-each x f))
+(def-method (for-each (x seq) f)    (seq-for-each x f))
 
 (macro (for var xs &rest body)
   (if (symbol? var)        `(for-each ,xs (fn (,var) ,@body))
       (car-is var 'vector) (w/uniq (g)
-                           `(for-each ,xs (fn (,g) (let ,var ,g ,@body))))
+                             `(for-each ,xs (fn (,g) (let ,var ,g ,@body))))
       (pair? var)          `(for-each ,xs (fn ,var ,@body))
-                           (error "Can't destructure " x)))
+                           (error "Can't destructure " var)))
 
 (def (append &rest xs)
   (let x (car xs)
@@ -459,7 +460,7 @@
 
 (def (default-exception-handler e)
   (w/stdout (stderr)
-    (println "Caught unhandled exception: " e)
+    (println "Unhandled exception: " e)
     (exit 1)))
 
 (current-exception-handler default-exception-handler)
@@ -664,11 +665,8 @@
       (print p x))))
 
 (def (string-for-each x f)
-  ((afn (i)
-     (when (< i (string-length x))
-       (f (string-ref x i))
-       (self (+ i 1))))
-   0))
+  (for-len i x
+    (f (string-ref x i))))
 
 (def (write-string x s)
   (string-for-each x (fn (c) (write-char c s))))

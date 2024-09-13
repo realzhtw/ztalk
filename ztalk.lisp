@@ -374,6 +374,19 @@
 (zdefun bytevector-push-back (x value) (vector-push-extend value x) x)
 (zdefun bytevector-capacity (x) (array-total-size x))
 
+(defun bytevector-reserve (x n)
+  (if (> n (array-total-size x))
+    (let ((new-size (max n (* (array-total-size x) 2))))
+      (adjust-array x new-size))
+    x))
+
+(zexport bytevector-reserve (x n))
+
+(zdefun bytevector-resize (x n)
+  (bytevector-reserve x n)
+  (setf (fill-pointer x) n)
+  x)
+
 (zdefun proc? (x) (functionp x))
 
 (zdefun make-dict (&optional test)
