@@ -1,0 +1,39 @@
+(def (utf8-rune-length r)
+  (let x (char-code r)
+    (if (< x       #x80) 1
+        (< x      #x800) 2
+        (< x    #x10000) 3
+        (< x   #x200000) 4
+        (< x  #x4000000) 5
+        (< x #x80000000) 6)))
+
+(def (utf8-encode-rune r buf pos)
+  (let x (char-code r)
+    (if (< x #x80)
+        (do (bytes-set buf pos x) 1)
+        (let n (utf8-rune-length r)
+          (bytes-set buf pos (bitwise-or (bitwise-and #xff (<< #xfc (- 6 n)))
+                                         (>> x (* (- n 1) 6))))
+          (for i (range 1 n)
+            (bytes-set buf (+ pos i) (bitwise-or #x80
+                                                 (bitwise-and #x3f (>> x (* (- n i 1) 6))))))
+          n))))
+
+(def (utf8-decode-rune-length b)
+  (if (= (>> b 7)   0) 1
+      (= (>> b 5)   6) 2
+      (= (>> b 4)  14) 3
+      (= (>> b 3)  30) 4
+      (= (>> b 2)  62) 5
+      (= (>> b 1) 126) 6))
+
+(def (utf8-decode-rune buf pos)
+  (let b0 (bytes-ref buf pos)
+    (if (< b0 #x80)
+        (char b0)
+        (withs (n (utf8-decode-rune-length b0)
+                x (bitwise-and b0 (- (<< 1 (- 7 n)) 1)))
+          (for i (range 1 n)
+            (set x (bitwise-or (<< x 6)
+                               (bitwise-and (bytes-ref buf (+ pos i)) #x3f))))
+          (char x)))))

@@ -410,6 +410,9 @@
 (dolist (f '(+ - * / vector))
   (eval `(zexport ,f (&rest xs))))
 
+(zexport char-code (c))
+(zdefun char (x) (code-char x))
+
 (zdef process-stdin *standard-input*)
 (zdef process-stdout *standard-output*)
 (zdef process-stderr *error-output*)
