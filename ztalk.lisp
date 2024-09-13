@@ -113,14 +113,14 @@
 (defun compile-set (x env k)
   (let ((var (isolate-lexical (car x) env))
         (exp (cadr x)))
-    (cond ((literalp exp)  (emit-funcall k `(setq ,var ,(zt-to-cl-literal exp))))
+    (cond ((literalp  exp) (emit-funcall k `(setq ,var ,(zt-to-cl-literal exp))))
           ((variablep exp) (emit-funcall k `(setq ,var ,(isolate-lexical exp env))))
           (t               (w/uniq (r)
                              (compile exp env
                                `(lambda (,r) ,(emit-funcall k `(setq ,var ,r)))))))))
 
 (defun compile-if (x env k)
-  (cond ((null x)          (emit-funcall k nil))
+  (cond ((null x)          (emit-funcall k '|lk|::|none|))
         ((null (cdr x))    (compile (car x) env k))
         ((not (symbolp k)) (w/uniq (k2) `(let ((,k2 ,k)) ,(compile-if x env k2))))
         ((atom (car x))    (destructuring-bind (cnd then &rest rest) x
@@ -138,7 +138,7 @@
                                       ,(compile-if (cddr x) env k))))))))
       
 (defun compile-body (x env k)
-  (cond ((null x)       (emit-funcall k nil))
+  (cond ((null x)       (emit-funcall k '|lk|::|none|))
         ((null (cdr x)) (compile (car x) env k))
         ((atom (car x)) `(progn ,(car x)
                                 ,(compile-body (cdr x) env k)))
@@ -148,18 +148,26 @@
                                (declare (ignore ,r))
                                ,(compile-body (cdr x) env k)))))))
 
+(defun params-ensure-none (xs env)
+  (cond ((null xs)        nil)
+        ((symbolp (car xs))     (cons (list (car xs) '|lk|::|none|)
+                                      (params-ensure-none (cdr xs) env)))
+        ((and (consp (car xs))
+              (null (cdar xs))) (cons (list (caar xs) '|lk|::|none|)
+                                      (params-ensure-none (cdr xs) env)))
+        (t                      (cons (car xs) (params-ensure-none (cdr xs) env)))))
 
 (defun compile-params (x env)
   (cond ((null x)                  nil)
         ((symbolp x)               (list '&rest (lexical x)))
         ((car-is x '|lk|::|&rest|) (cons '&rest (compile-params (cdr x) env)))
-        ((car-is x '|lk|::|&opt|)  (cons '&optional (compile-params (cdr x) env)))
+        ((car-is x '|lk|::|&opt|)  (cons '&optional (compile-params (params-ensure-none (cdr x) env) env)))
         ((consp x)                 (let ((param (car x)))
                                      (cons (if (consp param)
                                                (list (lexical (car param))
-                                                     (if (symbolp (cadr param))
-                                                         (isolate-lexical (cadr param) env)
-                                                         (cadr param)))
+                                                     (cond ((literalp  (cadr param)) (zt-to-cl-literal (cadr param)))
+                                                           ((variablep (cadr param)) (isolate-lexical (cadr param) env))
+                                                           (t                        (error "no expressions in default param values allowed"))))
                                                (lexical param))
                                            (compile-params (cdr x) env))))))
 
@@ -179,7 +187,7 @@
 
 (defun compile-many (xs rs env k)
   (cond ((null xs)            (apply #'emit-funcall k (reverse rs)))
-        ((literalp (car xs))  (compile-many (cdr xs) (cons (zt-to-cl-literal (car xs)) rs) env k))
+        ((literalp  (car xs)) (compile-many (cdr xs) (cons (zt-to-cl-literal (car xs)) rs) env k))
         ((variablep (car xs)) (compile-many (cdr xs) (cons (isolate-lexical (car xs) env) rs) env k))
         (t                    (w/uniq (r)
                                 (compile (car xs) env
@@ -291,6 +299,8 @@
   (if (eq (car params) '&rest)
       `(zdefun ,name ,params (apply #',name ,(cadr params)))
       `(zdefun ,name ,params ,(cons name params))))
+
+(zdef none (annotate '|lk|::|none| nil))
 
 (zdef call/cc
   (lambda (k f)

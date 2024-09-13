@@ -12,8 +12,9 @@
     (cdr r)))
 
 (def (seq-map f s)
-  (unless (null? s)
-    (seq (f (seq-hd s)) (seq-map f (seq-tl s)))))
+  (if (null? s)
+      nil
+      (seq (f (seq-hd s)) (seq-map f (seq-tl s)))))
 
 (def (map f x)
   (if (pair? x)
@@ -21,24 +22,27 @@
       (seq-map f x)))
 
 (def (integrate x0 + s)
-  (unless (null? s)
-    (seq x0 (integrate (+ x0 (seq-hd s)) + (seq-tl s)))))
+  (if (null? s)
+      nil
+      (seq x0 (integrate (+ x0 (seq-hd s)) + (seq-tl s)))))
 
 (def (as-seq x)
   (if (vector? x) ((afn (i)
-                     (when (< i (vector-size x))
-                       (seq (vector-ref x i) (self (+ i 1)))))
-                   0)
-      (list? x)   ((afn (l) (unless (null? l) (seq (car l) (self (cdr l))))) x)
+                     (if (< i (vector-size x))
+                         (seq (vector-ref x i) (self (+ i 1)))
+                         nil)) 0)
+      (list? x)   ((afn (l) (if (null? l) nil (seq (car l) (self (cdr l))))) x)
                   (error 'as-seq "Can't assume it's a sequence.")))
 
 (def (list-first-n l n)
-  (when (> n 0)
-    (seq (car l) (list-first-n (cdr l) (- n 1)))))
+  (if (> n 0)
+    (seq (car l) (list-first-n (cdr l) (- n 1)))
+    nil))
 
 (def (seq-first-n s n)
-  (when (and s (> n 0))
-    (seq (seq-hd s) (seq-first-n (seq-tl s) (- n 1)))))
+  (if (and s (> n 0))
+    (seq (seq-hd s) (seq-first-n (seq-tl s) (- n 1)))
+    nil))
 
 (def (seq-nth s n)
   (if (= n 0)
@@ -52,9 +56,11 @@
         (seq-find-that (seq-tl s) f))))
 
 (def (seq-first-that s f)
-  (unless (null? s)
-    (when (f (seq-hd s))
-      (seq (seq-hd s) (seq-first-that (seq-tl s) f)))))
+  (if (null? s)
+      nil
+      (if (f (seq-hd s))
+          (seq (seq-hd s) (seq-first-that (seq-tl s) f))
+          nil)))
 
 (def (first-n s n)
   (if (pair? s)
@@ -62,17 +68,20 @@
       (seq-first-n s n)))
 
 (def (list-enumerate s n)
-  (unless (null? s) 
-    (seq (list n (car s)) (list-enumerate (cdr s) (+ n 1)))))
+  (if (null? s)
+      nil
+      (seq (list n (car s)) (list-enumerate (cdr s) (+ n 1)))))
 
 (def (seq-enumerate s n)
-  (unless (null? s)
-    (seq (list n (seq-hd s)) (seq-enumerate (seq-tl s) (+ n 1)))))
+  (if (null? s)
+      nil
+      (seq (list n (seq-hd s)) (seq-enumerate (seq-tl s) (+ n 1)))))
 
 (def (range-enumerate r n)
   ((afn (i)
-     (when (< i (range-size r))
-       (seq (list (+ i n) (range-ref r i)) (self (+ i 1)))))
+     (if (< i (range-size r))
+       (seq (list (+ i n) (range-ref r i)) (self (+ i 1)))
+       nil))
    0))
 
 (def (enumerate x n)
@@ -118,6 +127,8 @@
   (unless (null? s)
     (f (seq-hd s))
     (seq-for-each (seq-tl s) f)))
+
+(def-method (for-each (x seq) f) (seq-for-each x f))
 
 (def (hd s) 
   (if (pair? s) 

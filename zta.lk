@@ -30,7 +30,7 @@
 
 (def (null? x) (is x nil))
 (def (not x) (is x nil))
-(def (no x) (is x nil))
+(def (no x) (is x none))
 
 (macro (reset x)
   `(set ,x nil))
@@ -117,7 +117,7 @@
                                              (cdr (caar pb)) nil 0)
                                             rest)))
                 (gensym))
-             true                (error "Can't parse binding: " (caar pb))))
+                                 (error "Can't parse binding: " (caar pb))))
          (pair bindings) nil nil nil))
    (fn (vars exprs rest)
      (if (null? rest)
@@ -146,14 +146,12 @@
         `(let ,g ,(car args)
            (if ,g ,g (or ,@(cdr args)))))))
 
-(def make-param
-  (let sentinel (gensym)
-    (fn (&opt x)
-      (let value x
-        (fn (&opt (new-value sentinel))
-          (if (is new-value sentinel)
-            value
-            (set value new-value)))))))
+(def (make-param &opt (x nil))
+  (let value x
+    (fn (&opt new-value)
+      (if (no new-value)
+          value
+          (set value new-value)))))
 
 (macro (def-param name value)
   `(def ,name (make-param ,value)))
@@ -286,7 +284,7 @@
          (let ,f (dict-ref ,vtable (type ,(car params)))
            (if ,f
              (,f ,@(remove '&opt params))
-             ,(if (no body)
+             ,(if (null? body)
                 `(error ,(car params) 'generic-not-defined)
                 `(do ,@body))))))))
 
@@ -303,8 +301,8 @@
 (def (dict-empty? x) (= (dict-size x) 0))
 
 (def (empty? x)
-  (if (pair? x) false
-      (null? x) true
+  (if (pair? x)   false
+      (null? x)   true
       (vector? x) (vector-empty? x)
       (string? x) (string-empty? x)
       (dict? x)   (dict-empty? x)
@@ -352,8 +350,7 @@
       (reduce f (f x0 (car xs)) (cdr xs))))
 
 (def (best f xs)
-  (unless (null? xs)
-    (reduce (fn (a b) (if (f a b) a b)) (car xs) (cdr xs))))
+  (if xs (reduce (fn (a b) (if (f a b) a b)) (car xs) (cdr xs))))
 
 (def (min &rest xs) (best < xs))
 (def (max &rest xs) (best > xs))
@@ -392,21 +389,17 @@
        ,gd)))
 
 (def (vector-for-each x f)
-  ((afn (i)
-     (when (< i (vector-size x))
-       (f (vector-ref x i))
-       (self (+ i 1))))
-   0))
+  (for-len i x
+    (f (vector-ref x i))))
 
 (def-generic (for-each x f))
 
 (def-method (for-each (x vector) f) (vector-for-each x f))
 (def-method (for-each (x string) f) (string-for-each x f))
-(def-method (for-each (x null) f)   nil)
+(def-method (for-each (x null) f)   none)
 (def-method (for-each (x pair) f)   (list-for-each x f))
 (def-method (for-each (x dict) f)   (dict-for-each x f))
 (def-method (for-each (x range) f)  (range-for-each x f))
-(def-method (for-each (x seq) f)    (seq-for-each x f))
 
 (macro (for var xs &rest body)
   (if (symbol? var)        `(for-each ,xs (fn (,var) ,@body))
@@ -465,15 +458,16 @@
 
 (current-exception-handler default-exception-handler)
 
-(def (read-char &opt s skip-space)
+(def (read-char &opt (s nil) (skip-space nil))
   (if skip-space (peek-char s true))
   (cl-read-char s))
 
-(def (read-line &opt s)
+(def (read-line &opt (s nil))
   (if (peek-char s)
     (accumulate-to-string acc
       (whiler c (read-char s) (not (in c nil #\newline))
-        (acc c)))))
+        (acc c)))
+    nil))
 
 (def (whitespace c)
   (or (is c #\space)
@@ -530,9 +524,9 @@
            (self (cons (read s true) rs))))
    nil))
 
-(def (read-string &opt s)
+(def (read-string &opt (s nil))
   (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
-    (when (is (read-char s true) #\")
+    (if (is (read-char s true) #\")
       (accumulate-to-string acc
         (whiler c (next-char) (isnt c #\")
           (case c
@@ -540,20 +534,22 @@
                   #\n (acc #\newline)
                   #\t (acc #\tab)
                       (acc nc))
-                (acc c)))))))
+                (acc c))))
+      nil)))
 
-(def (read-atom-as-string &opt s)
+(def (read-atom-as-string &opt (s nil))
   (if (peek-char s true)
     (accumulate-to-string acc
       (whiler c (peek-char s) (and c (not (atom-delimiter? c)))
-        (acc (read-char s))))))
+        (acc (read-char s))))
+    nil))
 
 (def (testify x)
   (if (proc? x)
       x
       (fn (y) (is x y))))
 
-(def (read-until test &opt s)
+(def (read-until test &opt (s nil))
   (let f (testify test)
     (accumulate-to-string acc
       (whiler c (peek-char s) (and c (not (f c)))
@@ -563,32 +559,32 @@
 
   (def (eof? x) (is x eof))
 
-  (def (read-atom &opt s)
+  (def (read-atom &opt (s nil))
     (let str (read-atom-as-string s)
       (if str
         (let x (with-input-from-string ss str (cl-read ss))
           (let c (peek-char s)
             (if (in c #\_)
-              (do (read-char s)
-                  (let y (read s true)
-                    `(ref ,x ,y)))
-              x)))
+                (do (read-char s)
+                    (let y (read s true)
+                      `(ref ,x ,y)))
+                x)))
         eof)))
 
-  (def (read-hash-value &opt s)
+  (def (read-hash-value &opt (s nil))
     (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
-      (when (is (read-char s true) #\#)
+      (if (is (read-char s true) #\#)
         (let str (with-output-to-string ss
                    (w/stdout ss
                      (case-let c (next-char)
                        #\\ (let nc (next-char)
-                             (print #\# c nc (if (atom-delimiter? nc)
-                                                     void
+                             (print #\# c nc (unless (atom-delimiter? nc)
                                                      (read-until atom-delimiter? s))))
                            (print #\# c (read-until atom-delimiter? s)))))
-          (with-input-from-string ss str (cl-read ss))))))
+          (with-input-from-string ss str (cl-read ss)))
+        nil)))
 
-  (def (read &opt s error-on-eof)
+  (def (read &opt (s nil) (error-on-eof nil))
     (case-let c (peek-char s true)
       nil (if error-on-eof (error "Unexpected EOF.") eof)
       #\" (read-string s)
@@ -609,10 +605,11 @@
 (def (string-rfind-next s c start)
   (let test (testify c)
     ((afn (i)
-      (when (>= i 0)
-        (if (test (string-ref s i))
-            i
-            (self (- i 1)))))
+      (if (>= i 0)
+          (if (test (string-ref s i))
+              i
+              (self (- i 1)))
+          nil))
      start)))
 
 (def (string-rfind s c) (string-rfind-next s c (- (length s) 1)))
@@ -635,7 +632,7 @@
 (def import-module
   (let loaded (make-dict 'equal)
     (set loaded-modules loaded)
-    (fn (name &opt force)
+    (fn (name &opt (force false))
       (let filename (append name ".lk")
         (point done
           (for path import-paths
@@ -672,6 +669,8 @@
   (string-for-each x (fn (c) (write-char c s))))
 
 (def-generic (write x s) (cl-write x s))
+
+(def-method (write (x none) s))
 
 (def-method (write (x string) s) (write-string x s))
 
@@ -732,7 +731,8 @@
          on-error        (fn (e)
                            (println "Unhandled exception: " e)))
     (whiler e (prompt-and-read) (not (eof? e))
-      (println (guard on-error
-                 (eval e))))))
+      (let x (guard on-error (eval e))
+        (unless (no x)
+          (println x))))))
 
 (repl)
