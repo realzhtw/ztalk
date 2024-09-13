@@ -51,10 +51,6 @@
   (w/uniq (f)
     `(funcall (rfn ,f () (when ,c ,@body (,f))))))
 
-(defmacro awhile (c &rest body)
-  (w/uniq (f)
-    `(funcall (rfn ,f () (let ((it ,c)) (when it ,@body (,f)))))))
-
 (defun gensyms (n)
   (unless (zerop n)
     (cons (gensym) (gensyms (- n 1)))))
@@ -62,6 +58,7 @@
 ; reader
 
 (defvar *ztalk-package* (make-package "lk"))
+(defvar *ztalk-lex* (make-package "lx"))
 
 (defun read-char-if (s c)
   (if (eq (peek-char nil s nil) c)
@@ -74,11 +71,6 @@
 (declaim (ftype (function (t t t) t) compile))
 
 (defun car-is (x y) (and (consp x) (eq (car x) y)))
-
-(defun declare-var (x env)
-  (unless (member x env)
-    (push x *free-vars*))
-  x)
 
 (defun litsymp (x)
   (and (symbolp x) (member x '(|lk|::|true| |lk|::|false| |lk|::|nil|))))
@@ -95,12 +87,19 @@
 
 (defun emit-funcall (fn &rest args)
   (if (symbolp fn)
-    (append (list 'funcall fn) args)
+    `(funcall ,fn ,@args)
     (cons fn args)))
 
+(defun lexical (x)
+  (intern (symbol-name x) *ztalk-lex*))
+
+(defun isolate-lexical (x env)
+  (if (member x env)
+    (lexical x)
+    (progn (push x *free-vars*) x)))
+
 (defun compile-var (x env k)
-  (declare-var x env)
-  (emit-funcall k x))
+  (emit-funcall k (isolate-lexical x env)))
 
 (defun zt-to-cl-literal (x)
   (case x (|lk|::|true|  t)
@@ -112,23 +111,22 @@
   (emit-funcall k (zt-to-cl-literal x)))
 
 (defun compile-set (x env k)
-  (destructuring-bind (var exp) x
-    (declare-var var env)
-    (if (variablep exp)
-      (declare-var exp env))
-    (if (or (variablep exp)
-            (literalp exp))
-        (emit-funcall k `(setq ,var ,exp)))
-        (w/uniq (r)
-          (compile exp env
-            `(lambda (,r) ,(emit-funcall k `(setq ,var ,r)))))))
+  (let ((var (isolate-lexical (car x) env))
+        (exp (cadr x)))
+    (cond ((literalp exp)  (emit-funcall k `(setq ,var ,(zt-to-cl-literal exp))))
+          ((variablep exp) (emit-funcall k `(setq ,var ,(isolate-lexical exp env))))
+          (t               (w/uniq (r)
+                             (compile exp env
+                               `(lambda (,r) ,(emit-funcall k `(setq ,var ,r)))))))))
 
 (defun compile-if (x env k)
   (cond ((null x)          (emit-funcall k nil))
         ((null (cdr x))    (compile (car x) env k))
         ((not (symbolp k)) (w/uniq (k2) `(let ((,k2 ,k)) ,(compile-if x env k2))))
         ((atom (car x))    (destructuring-bind (cnd then &rest rest) x
-                             (let ((zc (if (literalp cnd) (zt-to-cl-literal cnd) cnd)))
+                             (let ((zc (if (literalp cnd)
+                                           (zt-to-cl-literal cnd)
+                                           (isolate-lexical cnd env))))
                                `(if ,zc
                                     ,(compile then env k)
                                     ,(compile-if rest env k)))))
@@ -151,29 +149,38 @@
                                ,(compile-body (cdr x) env k)))))))
 
 
-(defun compile-params (x)
+(defun compile-params (x env)
   (cond ((null x)                  nil)
-        ((symbolp x)               (list '&rest x))
-        ((car-is x '|lk|::|&rest|) (cons '&rest (compile-params (cdr x))))
-        ((car-is x '|lk|::|&opt|)  (cons '&optional (compile-params (cdr x))))
-        ((consp x)                 (cons (car x) (compile-params (cdr x))))))
+        ((symbolp x)               (list '&rest (lexical x)))
+        ((car-is x '|lk|::|&rest|) (cons '&rest (compile-params (cdr x) env)))
+        ((car-is x '|lk|::|&opt|)  (cons '&optional (compile-params (cdr x) env)))
+        ((consp x)                 (let ((param (car x)))
+                                     (cons (if (consp param)
+                                               (list (lexical (car param))
+                                                     (if (symbolp (cadr param))
+                                                         (isolate-lexical (cadr param) env)
+                                                         (cadr param)))
+                                               (lexical param))
+                                           (compile-params (cdr x) env))))))
 
 (defun param-names (x)
-  (cond ((null x) nil)
-        ((symbolp x) (list x))
-        ((consp x)   (cons (car x) (param-names (cdr x))))))
+  (cond ((null x)                  nil)
+        ((symbolp x)               (list x))
+        ((car-is x '|lk|::|&rest|) (param-names (cdr x)))
+        ((car-is x '|lk|::|&opt|)  (param-names (cdr x)))
+        ((consp (car x))           (cons (caar x) (param-names (cdr x))))
+        ((consp x)                 (cons (car x) (param-names (cdr x))))))
 
 (defun compile-fn (exp env k)
   (destructuring-bind (params &rest body) exp
     (w/uniq (k2)
-      `(funcall ,k (lambda (,k2 ,@(compile-params params))
+      `(funcall ,k (lambda (,k2 ,@(compile-params params env))
                      ,(compile-body body (append (param-names params) env) k2))))))
 
 (defun compile-many (xs rs env k)
-  (cond ((null xs)            (apply #'emit-funcall (cons k (reverse rs))))
+  (cond ((null xs)            (apply #'emit-funcall k (reverse rs)))
         ((literalp (car xs))  (compile-many (cdr xs) (cons (zt-to-cl-literal (car xs)) rs) env k))
-        ((variablep (car xs)) (declare-var (car xs) env)
-                              (compile-many (cdr xs) (cons (car xs) rs) env k))
+        ((variablep (car xs)) (compile-many (cdr xs) (cons (isolate-lexical (car xs) env) rs) env k))
         (t                    (w/uniq (r)
                                 (compile (car xs) env
                                   `(lambda (,r)
@@ -225,7 +232,7 @@
 (defun ztalk-type (x)
   (cond ((tagged-p x)   (tagged-tag x))
         ((consp x)      '|lk|::|pair|)
-        ((null x)       '|lk|::|none|)
+        ((null x)       '|lk|::|null|)
         ((symbolp x)    '|lk|::|symbol|)
         ((functionp x)  '|lk|::|fn|)
         ((characterp x) '|lk|::|char|)
@@ -356,7 +363,9 @@
 
 (zdefun bytes-ref (x i) (aref x i))
 (zdefun bytes-set (x i v) (setf (aref x i) v))
-(zdefun bytes-size (x) (length x))
+(zdefun bytevector-size (x) (length x))
+
+(zdefun copy-bytes (dst pos src start end) (replace dst src :start1 pos :start2 start :end2 end))
 
 (zdefun make-adjustable-bytevector (&optional (n 0))
   (make-array n :element-type '(unsigned-byte 8)

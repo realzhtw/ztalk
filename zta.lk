@@ -148,14 +148,14 @@
 
 (def make-param
   (let sentinel (gensym)
-    (fn (x)
+    (fn (&opt x)
       (let value x
         (fn (&opt (new-value sentinel))
           (if (is new-value sentinel)
             value
             (set value new-value)))))))
 
-(macro (defp name value)
+(macro (def-param name value)
   `(def ,name (make-param ,value)))
 
 (macro (point name &rest body)
@@ -165,9 +165,7 @@
          (let ,name (fn (&opt x) (,k x))
            ,@body)))))
 
-(def (ignore &rest args) nil)
-
-(defp current-exception-handler ignore)
+(def-param current-exception-handler (fn (e) (exit 1)))
 
 (def (call-with-exception-handler h thunk)
   (let old-handler (current-exception-handler)
@@ -321,7 +319,7 @@
 
 (def (length x)
   (if (vector? x) (vector-size x)
-      (bytes? x)  (bytes-size x)
+      (bytes? x)  (bytesvector-size x)
       (string? x) (string-length x)
       (list? x)   (list-length x)))
 
@@ -444,11 +442,11 @@
                                 (self (cddr xs)))))
       content)))
 
-(defp current-source-file nil)
+(def-param current-source-file nil)
 
-(defp stdin process-stdin)
-(defp stdout process-stdout)
-(defp stderr process-stderr)
+(def-param stdin process-stdin)
+(def-param stdout process-stdout)
+(def-param stderr process-stderr)
 
 (macro (w/stdin s &rest body)
   `(w/param stdin ,s ,@body))

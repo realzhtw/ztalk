@@ -129,7 +129,7 @@
       (cdr s)
       (seq-tl s)))
 
-(defp seq-print-limit 3)
+(def-param seq-print-limit 3)
 
 (def-method (write (x seq) s)
   (w/stdout s
