@@ -458,7 +458,7 @@
 
 (current-exception-handler default-exception-handler)
 
-(def (read-char &opt (s nil) (skip-space nil))
+(def (read-char &opt (s nil) (skip-space false))
   (if skip-space (peek-char s true))
   (cl-read-char s))
 
@@ -469,7 +469,7 @@
         (acc c)))
     nil))
 
-(def (whitespace c)
+(def (whitespace? c)
   (or (is c #\space)
       (is c #\tab)
       (is c #\newline)
@@ -489,7 +489,7 @@
      (after (do ,@body) (close ,var))))
 
 (def (atom-delimiter? c)
-  (or (whitespace c)
+  (or (whitespace? c)
       (in c #\) #\( #\[ #\] #\{ #\} #\_)))
 
 (def (make-iomanip f)
@@ -516,9 +516,30 @@
   (apply println (cons msg rest))
   (raise 'read-error))
 
+(def (skip-line &opt (s nil))
+  (if-let c (peek-char s)
+    (do (read-char s)
+        (if (is c #\newline)
+          c
+          (skip-line s)))
+    nil))
+
+(def (skip-space-and-comments &opt (s nil))
+  (if-let c (peek-char s true)
+    (if (is c #\;)
+        (if (skip-line s)
+            (skip-space-and-comments s)
+            nil)
+        c)
+    nil))
+
+(def (skip-space-and-comments-and-read-char &opt (s nil))
+  (and (skip-space-and-comments s)
+       (read-char s)))
+
 (def (read-delimited-list d s)
   ((afn (rs)
-     (case (peek-char s true)
+     (case (skip-space-and-comments s)
        nil (error "Expected " d)
        d   (do (read-char s) (reverse rs))
            (self (cons (read s true) rs))))
@@ -526,7 +547,7 @@
 
 (def (read-string &opt (s nil))
   (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
-    (if (is (read-char s true) #\")
+    (if (is (read-char s) #\")
       (accumulate-to-string acc
         (whiler c (next-char) (isnt c #\")
           (case c
@@ -538,7 +559,7 @@
       nil)))
 
 (def (read-atom-as-string &opt (s nil))
-  (if (peek-char s true)
+  (if (skip-space-and-comments s)
     (accumulate-to-string acc
       (whiler c (peek-char s) (and c (not (atom-delimiter? c)))
         (acc (read-char s))))
@@ -560,20 +581,19 @@
   (def (eof? x) (is x eof))
 
   (def (read-atom &opt (s nil))
-    (let str (read-atom-as-string s)
-      (if str
-        (let x (with-input-from-string ss str (cl-read ss))
-          (let c (peek-char s)
-            (if (in c #\_)
-                (do (read-char s)
-                    (let y (read s true)
-                      `(ref ,x ,y)))
-                x)))
-        eof)))
+    (if-let str (read-atom-as-string s)
+      (let x (with-input-from-string ss str (cl-read ss))
+        (let c (peek-char s)
+          (if (in c #\_)
+              (do (read-char s)
+                  (let y (read s true)
+                    `(ref ,x ,y)))
+              x)))
+      eof))
 
   (def (read-hash-value &opt (s nil))
     (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
-      (if (is (read-char s true) #\#)
+      (if (is (and (skip-space-and-comments s) (read-char s)) #\#)
         (let str (with-output-to-string ss
                    (w/stdout ss
                      (case-let c (next-char)
@@ -584,13 +604,9 @@
           (with-input-from-string ss str (cl-read ss)))
         nil)))
 
-  (def (skip-line &opt (s nil))
-    (whiler c (read-char s) (not (in c nil #\newline))))
-
   (def (read &opt (s nil) (error-on-eof nil))
-    (case-let c (peek-char s true)
+    (case-let c (skip-space-and-comments s)
       nil (if error-on-eof (error "Unexpected EOF.") eof)
-      #\; (do (skip-line s) (read s error-on-eof))
       #\" (read-string s)
       #\# (read-hash-value s)
       #\( (do (read-char s) (read-delimited-list #\) s))
