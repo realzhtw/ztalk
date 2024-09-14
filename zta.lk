@@ -584,9 +584,13 @@
           (with-input-from-string ss str (cl-read ss)))
         nil)))
 
+  (def (skip-line &opt (s nil))
+    (whiler c (read-char s) (not (in c nil #\newline))))
+
   (def (read &opt (s nil) (error-on-eof nil))
     (case-let c (peek-char s true)
       nil (if error-on-eof (error "Unexpected EOF.") eof)
+      #\; (do (skip-line s) (read s error-on-eof))
       #\" (read-string s)
       #\# (read-hash-value s)
       #\( (do (read-char s) (read-delimited-list #\) s))
