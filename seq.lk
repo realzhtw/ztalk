@@ -77,18 +77,11 @@
       nil
       (seq (list n (seq-hd s)) (seq-enumerate (seq-tl s) (+ n 1)))))
 
-(def (range-enumerate r n)
-  ((afn (i)
-     (if (< i (range-size r))
-       (seq (list (+ i n) (range-ref r i)) (self (+ i 1)))
-       nil))
-   0))
+(def-generic (enumerate x n))
 
-(def (enumerate x n)
-  (if (pair? x)  (list-enumerate x n)
-      (seq? x)   (seq-enumerate x n)
-      (range? x) (range-enumerate x n)
-                 (error "Can't enumerate " x)))
+(def-method (enumerate (x null) n) nil)
+(def-method (enumerate (x pair) n) (list-enumerate x n))
+(def-method (enumerate (x seq) n) (seq-enumerate x n))
 
 (def (inf-range start stride)
   (seq start (inf-range (+ start stride) stride)))
@@ -103,25 +96,6 @@
 (def (seq->vector s)
   (accumulate-to-vector acc
     (seq-for-each s acc)))
-
-(def (list-for-each x f)
-  (unless (null? x)
-    (f (car x)) 
-    (list-for-each (cdr x) f)))
-
-(def (range a b) (annotate 'range (cons a b)))
-(def (range? x) (is-a x 'range))
-(def (range-from r) (car (rep r)))
-(def (range-to r)   (cdr (rep r)))
-(def (range-ref r i) (+ (range-from r) i))
-(def (range-size r) (- (range-to r) (range-from r)))
-
-(def (range-for-each x f)
-  ((afn (i)
-     (when (< i (range-to x))
-       (f i)
-       (self (+ i 1))))
-   (range-from x)))
 
 (def (seq-for-each s f)
   (unless (null? s)

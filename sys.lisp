@@ -1,3 +1,5 @@
+(require 'sb-posix)
+
 (zdefun set-signal-handler (signum handler)
   (sb-sys:enable-interrupt signum
                            (lambda (signum frame context)
@@ -14,6 +16,12 @@
 
 (zdefun unix-write (fd buf start end)
   (sb-unix:unix-write fd buf start end))
+
+(zdefun unix-lseek (fd offset whence)
+  (sb-unix-unix-lseek fd offset (case whence
+                                  (set sb-posix:seek-set)
+                                  (cur sb-posix:seek-cur)
+                                  (end sb-posix:seek-end))))
 
 (zdefun unix-close (fd)
   (sb-unix:unix-close fd))

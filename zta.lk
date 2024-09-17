@@ -89,7 +89,7 @@
 (macro (and &rest args)
   (if (null? args)       'true
       (null? (cdr args)) (car args)
-                         `(if ,(car args) (and ,@(cdr args)))))
+                         `(if ,(car args) (and ,@(cdr args)) false)))
 
 (def (car-is x y)
   (and (pair? x)
@@ -392,6 +392,11 @@
   (for-len i x
     (f (vector-ref x i))))
 
+(def (list-for-each x f)
+  (unless (null? x)
+    (f (car x))
+    (list-for-each (cdr x) f)))
+
 (def-generic (for-each x f))
 
 (def-method (for-each (x vector) f) (vector-for-each x f))
@@ -645,6 +650,8 @@
       (whiler e (read f) (not (eof? e))
         (eval e)))))
 
+(def-param test-on-import false)
+
 (def import-paths (make-adjustable-vector))
 
 (push-back import-paths (path-dirname (ref argv 0)))
@@ -735,6 +742,7 @@
 (import seq)
 (import struct)
 (import records)
+(import ranges)
 (import algorithms)
 (import sys)
 (import sockets)

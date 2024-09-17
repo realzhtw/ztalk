@@ -1,0 +1,42 @@
+(struct range
+  from
+  to
+  step)
+
+(def (range a b &opt (s nil)) (make-range a b (or s 1)))
+(def (range-ref r i) (+ (range-from r) (* i (range-step r))))
+(def (range-size r) (div (- (range-to r) (range-from r)) (range-step r)))
+
+(def (range-for-each x f)
+  (with (end   (range-to x)
+         step  (range-step x))
+    ((if (< step 0)
+       (afn (i)
+         (when (> i end)
+           (f i)
+           (self (+ i step))))
+       (afn (i)
+         (when (< i end)
+           (f i)
+           (self (+ i step)))))
+     (range-from x))))
+
+(def (range->list x)
+  (accumulate acc
+    (for e x
+      (acc e))))
+
+(def (range->vector x)
+  (accumulate-to-vector acc
+    (for e x
+      (acc e))))
+
+(def (range-enumerate r n)
+  ((afn (i)
+     (if (< i (range-size r))
+       (seq (list (+ i n) (range-ref r i)) (self (+ i 1)))
+       nil))
+   0))
+
+(def-method (enumerate (x range) n)
+  (range-enumerate x n))

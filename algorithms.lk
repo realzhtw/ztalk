@@ -12,9 +12,9 @@
      (set ,p (>> ,p 1))
      (set ,n (+ ,n 1))))
 
-(def (vector-smoothsort sort v)
+(def (vector-smoothsort v)
   (with (lt (fn (i j) (< (vector-ref v i)
-                        (vector-ref v j)))
+                         (vector-ref v j)))
          swap (fn (i j) (let tmp (vector-ref v i)
                           (vector-set v i (vector-ref v j))
                           (vector-set v j tmp)))
@@ -138,3 +138,8 @@
 (def (sorted? x)
   (if (vector? x) (vector-sorted? x)
       (pair? x)   (list-sorted? x)))
+
+(when (test-on-import)
+  (let x (range->vector (range 200 0 -1))
+    (sort x)
+    (if (not (sorted? x)) (raise 'test-failed))))
