@@ -1,0 +1,42 @@
+(def-generic (read-some-bytes src buf start end)) 
+(def-generic (write-some-bytes dst buf start end))
+(def-generic (fflush x))
+;(def-generic (ftell x))
+(def-generic (fseek x offset whence))
+
+(struct fdport
+           fd
+           name
+  &mutable is-open)
+
+(def-method (read-some-bytes (f fdport) buf start end)
+  (unix-read (fdport-fd f) buf start end))
+
+(def-method (write-some-bytes (f fdport) buf start end)
+  (unix-write (fdport-fd f) buf start end))
+
+(def-method (fflush (f fdport))
+  (unix-flush (fdport-fd f)))
+
+;(def-method (ftell (f fdport) offset whence)
+;  (unix-ltell (fdport-fd f) offset whence))
+
+(def-method (fseek (f fdport) offset whence)
+  (unix-lseek (fdport-fd f) offset whence))
+
+(def-method (close (f fdport))
+  (unix-close (fdport-fd f)))
+
+(struct file-info
+  dev inode mode nlinks uid gid rdev size
+   atime mtime ctime block-size nblocks)
+
+(def (fstat f)
+  (if-let info (unix-fstat (fdport-fd f))
+    (annotate 'file-info info)
+    nil))
+
+(def (get-block-size f)
+  (if-let fi (fstat f)
+    (file-info-block-size fi)
+    nil))

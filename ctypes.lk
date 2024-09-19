@@ -1,4 +1,4 @@
-(def whitespace-table [
+(def whitespace-ranges [
   #x0009 #x000d ; Cc   [5] <control-0009>..<control-000D>
   #x0020 #x0020 ; Zs       SPACE
   #x0085 #x0085 ; Cc       <control-0085>
@@ -12,10 +12,10 @@
   #x3000 #x3000 ; Zs       IDEOGRAPHIC SPACE
 ])
 
-(def (ctype-table-lookup x tbl)
+(def (ctype-ranges-lookup x tbl)
   (let i (vector-lower-bound tbl x)
-    (and i (or (= (bitwise-and i 1) 1)
-               (= (vector-ref tbl i) x)))))
+    (or (= (bitwise-and i 1) 1)
+        (= (vector-ref tbl i) x)))))
 
-(def (whitespace? c)
-  (ctype-table-lookup (char-code c) whitespace-table))
+(def (whitespace-char? c)
+  (ctype-table-lookup (char-code c) whitespace-ranges))
