@@ -16,9 +16,9 @@
       (utf8-encode-rune c b m)
       s)))
 
-(def (accumulate-to-utf8-string acc-fn &rest body)
+(macro (accumulate-to-utf8-string acc-fn &rest body)
   (w/uniq (gs)
-    `(withs (,gs (make-adjustable-bytevector)
+    `(withs (,gs (make-adjustable-utf8-string)
              ,acc-fn (fn (c) (utf8-string-push-back ,gs c)))
        ,@body
        ,gs)))

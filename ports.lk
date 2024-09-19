@@ -1,0 +1,191 @@
+(import file)
+(import utf8)
+(import utf8-strings)
+
+(struct input-port
+           backend
+           buffer
+  &mutable buf-rdpos
+  &mutable buf-wrpos
+  &mutable is-open)
+
+(def (input-port-buffered? s) (not (null? (input-port-buffer s))))
+(def (input-port-buffer-size s) (bytevector-size (input-port-buffer s)))
+
+(def (input-port-buffer-advance-rdpos s n)
+  (input-port-set-buf-rdpos s (+ (input-port-buf-rdpos s) n)))
+
+(def (input-port-buffer-advance-wrpos s n)
+  (input-port-set-buf-wrpos s (+ (input-port-buf-wrpos s) n)))
+
+(def (input-port-buffer-bytes-left s)
+  (- (input-port-buf-wrpos s) (input-port-buf-rdpos s)))
+
+(def (input-port-buffer-empty? s)
+  (= (input-port-buffer-bytes-left s) 0))
+
+(def (input-port-buffer-space-left s)
+  (- (input-port-buffer-size s) (input-port-buf-wrpos s)))
+
+(def (input-port-buffer-full? s)
+  (= (input-port-buffer-space-left s) 0))
+
+(def (input-port-reset-buffer s)
+  (withs (start (input-port-buf-rdpos s)
+          end   (input-port-buf-wrpos s)
+          n     (- end start))
+    (when (> n 0)
+      (copy-bytes (input-port-buffer s) 0
+                  (input-port-buffer s) start end))
+    (input-port-set-buf-rdpos s 0)
+    (input-port-set-buf-wrpos s n)))
+
+(def (input-port-fill-buffer s)
+  (when (< (input-port-buffer-bytes-left s) 6)
+    (input-port-reset-buffer s))
+  (let n (read-some-bytes (input-port-backend s)
+                          (input-port-buffer s)
+                          (input-port-buf-wrpos s)
+                          (input-port-buffer-space-left s))
+    (input-port-buffer-advance-wrpos s n)
+    n))
+
+(def (input-port-ensure-buffer s n)
+  (or (>= (input-port-buffer-bytes-left s) n)
+      (and (> (input-port-fill-buffer s) 0)
+           (input-port-ensure-buffer s n))))
+
+(def (input-port-read-some-bytes s buf start end)
+  (input-port-ensure-buffer s 1)
+  (if (input-port-buffer-empty? s)
+      0
+      (let n (min (- end start) (input-port-buffer-bytes-left s))
+        (copy-bytes buf start (input-port-buffer s)
+                              (input-port-buf-rdpos s)
+                              n)
+        (input-port-buffer-advance-rdpos s n)
+        n)))
+
+(def (input-port-peek-byte s)
+  (if (input-port-ensure-buffer s 1)
+    (bytes-ref (input-port-buffer s) (input-port-buf-rdpos s))
+    nil))
+
+(def (input-port-read-byte s)
+  (let b (input-port-peek-byte s)
+    (if b
+        (input-port-buffer-advance-rdpos s 1))
+    b))
+
+(def (input-port-peek-rune s)
+  (if-let b (input-port-peek-byte s)
+    (let n (utf8-decode-rune-length b)
+      (if (or (null? n)
+              (not (input-port-ensure-buffer s n)))
+          (raise 'invalid-utf8-sequence))
+      (utf8-decode-rune (input-port-buffer s)
+                        (input-port-buf-rdpos s)))
+    nil))
+
+(def (input-port-read-rune s)
+  (let c (input-port-peek-rune s)
+    (if c
+        (input-port-buffer-advance-rdpos s (utf8-rune-length c)))
+    c))
+
+(def (input-port-read-line s)
+  (if (input-port-peek-rune s)
+    (accumulate-to-utf8-string acc
+      (whiler r (input-port-read-rune s) (not (in r nil #\newline))
+        (acc r)))
+    nil))
+
+(def-method (read-some-bytes (s input-port) buf start end)
+  (input-port-read-some-bytes s buf start end))
+
+(struct output-port
+           backend
+           backend-write
+           backend-close
+           buffer
+  &mutable buf-wrpos
+  &mutable is-open)
+
+(def (output-port-buffered? os)
+  (not (null? (output-port-buffer os))))
+
+(def (output-port-buffer-size os)
+  (vector-size (output-port-buffer os)))
+
+(def (output-port-buffer-space-left os)
+  (- (output-port-buffer-size os)
+     (output-port-buf-wrpos os)))
+
+(def (output-port-buffer-full? os)
+  (= (output-port-buffer-space-left os) 0))
+
+(def (output-port-buffer-empty? os)
+  (= (output-port-buffer-wrpos os) 0))
+
+(def (output-port-write-to-backend os buf start end)
+  ((output-port-backend-write os) (output-port-backend os) buf start end))
+
+(def (output-port-close-backend os)
+  ((output-port-backend-close os) (output-port-backend os)))
+
+(def (output-port-buffer-advance-wrpos os n)
+  (output-port-set-buf-wrpos os (+ (output-port-buf-wrpos os) n)))
+
+(def (output-port-write-to-buffer os buf start end)
+  (let n (min (- end start) (output-port-buffer-space-left os))
+    (copy-bytes (output-port-buffer os) (output-port-buf-wrpos os)
+                buf start end)
+    (output-port-buffer-advance-wrpos os n)
+    n))
+
+(def (flush-output-port os)
+  (let n (output-port-buf-wrpos os)
+    (output-port-backend-write os (output-port-buffer os) 0 n)
+    (output-port-set-buf-wrpos os 0)
+    n))
+
+(def (output-port-write-some-bytes os buf start end)
+  (if (output-port-buffered? os)
+      (let n (output-port-write-to-buffer os buf start end)
+        (if (output-port-buffer-full? os)
+          (flush-output-port os))
+        n)
+      (output-port-backend-write os buf start end)))
+
+(def (output-port-write-bytes s buf &opt (start 0) end)
+  (if (no end) (set end (bytevector-size buf)))
+  (while (< start end)
+    (let n (output-port-write-some-bytes s buf start end)
+      (set start (+ start n)))))
+
+(def (close-output-port s)
+  (when (output-port-is-open s)
+    (if (output-port-buffer-empty? s)
+      (flush-output-port s))
+    (output-port-close-backend s)
+    (output-port-set-is-open false)))
+
+(def (fdopen fd dir)
+  (let buf-size (file-info-block-size (fstat fd))
+    (case dir
+      'in  (raise 'not-implemented)
+      'out (make-output-port fd unix-write unix-close
+                             (make-bytevector buf-size) 0 true)
+           (raise 'fdopen-invalid-direction))))
+
+(def (open-input-file2 path)
+  (withs (fd      (unix-open path 'input 0)
+          backend (if (< fd 0)
+                      (raise 'open-failed)
+                      (make-fdport fd path true))
+          buf     (make-bytevector (get-block-size backend)))
+    (make-input-port backend buf 0 0 true)))
+
+(when (test-on-import)
+  true
+)

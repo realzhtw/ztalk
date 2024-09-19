@@ -489,6 +489,9 @@
      ,@body
      (get-output-string ,var)))
 
+(def-generic (close x))
+(def-method (close (x cl-stream)) (cl-close x))
+
 (macro (with-input-from-file var path &rest body)
   `(let ,var (open-input-file ,path)
      (after (do ,@body) (close ,var))))
@@ -553,14 +556,14 @@
 (def (read-string &opt (s nil))
   (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
     (if (is (read-char s) #\")
-      (accumulate-to-string acc
-        (whiler c (next-char) (isnt c #\")
-          (case c
-            #\\ (case-let nc (next-char)
-                  #\n (acc #\newline)
-                  #\t (acc #\tab)
-                      (acc nc))
-                (acc c))))
+      (copy-string (accumulate-to-string acc
+                     (whiler c (next-char) (isnt c #\")
+                       (case c
+                         #\\ (case-let nc (next-char)
+                               #\n (acc #\newline)
+                               #\t (acc #\tab)
+                                   (acc nc))
+                             (acc c)))))
       nil)))
 
 (def (read-atom-as-string &opt (s nil))

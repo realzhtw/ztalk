@@ -5,7 +5,8 @@
         (< x    #x10000) 3
         (< x   #x200000) 4
         (< x  #x4000000) 5
-        (< x #x80000000) 6)))
+        (< x #x80000000) 6
+                         nil)))
 
 (def (utf8-encode-rune r buf pos)
   (let x (char-code r)
@@ -25,7 +26,8 @@
       (= (>> b 4)  14) 3
       (= (>> b 3)  30) 4
       (= (>> b 2)  62) 5
-      (= (>> b 1) 126) 6))
+      (= (>> b 1) 126) 6
+                       nil))
 
 (def (utf8-decode-rune buf pos)
   (let b0 (bytes-ref buf pos)
@@ -37,3 +39,10 @@
             (set x (bitwise-or (<< x 6)
                                (bitwise-and (bytes-ref buf (+ pos i)) #x3f))))
           (char x)))))
+
+(when (test-on-import)
+  (with (buf (bytes 0 0 0 0)
+         c   #\ю)
+    (utf8-encode-rune c buf 0)
+    (if (not (is c (utf8-decode-rune buf 0)))
+      (raise 'test-on-import))))

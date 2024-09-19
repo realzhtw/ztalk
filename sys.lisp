@@ -11,6 +11,13 @@
 (zdef sigstop sb-unix:SIGSTOP)
 (zdef sigcont sb-unix:SIGCONT)
 
+(zdefun unix-open (path mode perm)
+  (let ((m (case mode
+             (|lk|::|input|  sb-unix:O_RDONLY)
+             (|lk|::|output| sb-unix:O_WRONLY)
+             (|lk|::|append| sb-unix:O_APPEND))))
+    (sb-posix:open path m perm)))
+
 (zdefun unix-read (fd buf start end)
   (sb-unix:unix-read fd (sb-sys:sap+ (sb-sys:vector-sap buf) start) (- end start)))
 
@@ -25,6 +32,9 @@
 
 (zdefun unix-close (fd)
   (sb-unix:unix-close fd))
+
+(zdefun unix-fsync (fd)
+  (sb-posix:fsync fd))
 
 (zdefun unix-fstat (fd)
   (multiple-value-bind (ok dev inode mode nlinks uid gid rdev size

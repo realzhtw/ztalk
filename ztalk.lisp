@@ -250,6 +250,7 @@
         ((hash-table-p x) '|lk|::|dict|)
         ((integerp x)   '|lk|::|int|)
         ((floatp x)     '|lk|::|float|)
+        ((streamp x)    '|lk|::|cl-stream|)
         ((filep x)      '|lk|::|file|)
         (t              (error (format nil "Unknown type: ~S" x)))))
 
@@ -339,6 +340,7 @@
 (zexport string-length (x))
 (defun substring (x i j) (declare (type string x)) (subseq x i j))
 (zexport substring (x i j))
+(zdefun copy-string (s) (copy-seq s))
 
 (zdefun make-adjustable-string (&optional (n 0))
   (make-array n :element-type 'character
@@ -442,7 +444,7 @@
 
 (zdefun open-input-file (path) (open path :direction :input))
 (zdefun open-output-file (path) (open path :direction :output))
-(zexport close (f))
+(zdefun cl-close (f) (close f))
 (zdefun file? (x) (filep x))
 (zdefun open-input-string (s) (make-string-input-stream s))
 (zdefun open-output-string () (make-string-output-stream))

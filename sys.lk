@@ -8,12 +8,3 @@
              end-real-time (real-time))
         [r (- end-cpu-time start-cpu-time)
            (- end-real-time start-real-time)]))))
-
-
-(struct file-info
-  dev inode mode nlinks uid gid rdev size
-   atime mtime ctime block-size nblocks)
-
-(def (fstat fd)
-  (if-let info (unix-fstat fd)
-    (annotate 'file-info info)))
