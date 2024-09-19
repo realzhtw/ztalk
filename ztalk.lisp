@@ -450,7 +450,7 @@
 (zdefun open-output-string () (make-string-output-stream))
 (zdefun get-output-string (s) (get-output-stream-string s))
 
-(zdefun cl-read (&optional s eof) (ztalk-read s nil eof))
+(zdefun cl-sread (&optional s eof) (ztalk-read s nil eof))
 (zdefun cl-load (path) (load path))
 
 (zdefun peek-char (&optional s skip-space) (peek-char skip-space s nil))
