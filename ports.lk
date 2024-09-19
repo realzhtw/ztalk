@@ -1,15 +1,18 @@
-(import file)
+(import fdport)
 (import utf8)
 (import utf8-strings)
 
+(def-generic (read src buf start end))
+(def-method (read (src fdport) buf start end) (fdport-read src buf start end))
+(def-method (write (src fdport) buf start end) (fdport-write src buf start end))
+
+; input port
 (struct input-port
            backend
            buffer
   &mutable buf-rdpos
-  &mutable buf-wrpos
-  &mutable is-open)
+  &mutable buf-wrpos)
 
-(def (input-port-buffered? s) (not (null? (input-port-buffer s))))
 (def (input-port-buffer-size s) (bytevector-size (input-port-buffer s)))
 
 (def (input-port-buffer-advance-rdpos s n)
@@ -41,12 +44,12 @@
     (input-port-set-buf-wrpos s n)))
 
 (def (input-port-fill-buffer s)
-  (when (< (input-port-buffer-bytes-left s) 6)
+  (when (< (input-port-buffer-bytes-left s) utf8-max-rune-length)
     (input-port-reset-buffer s))
-  (let n (read-some-bytes (input-port-backend s)
-                          (input-port-buffer s)
-                          (input-port-buf-wrpos s)
-                          (input-port-buffer-space-left s))
+  (let n (read (input-port-backend s)
+               (input-port-buffer s)
+               (input-port-buf-wrpos s)
+               (input-port-buffer-size s))
     (input-port-buffer-advance-wrpos s n)
     n))
 
@@ -55,7 +58,7 @@
       (and (> (input-port-fill-buffer s) 0)
            (input-port-ensure-buffer s n))))
 
-(def (input-port-read-some-bytes s buf start end)
+(def (input-port-read s buf start end)
   (input-port-ensure-buffer s 1)
   (if (input-port-buffer-empty? s)
       0
@@ -100,8 +103,8 @@
         (acc r)))
     nil))
 
-(def-method (read-some-bytes (s input-port) buf start end)
-  (input-port-read-some-bytes s buf start end))
+(def-method (read (s input-port) buf start end)
+  (input-port-read s buf start end))
 
 (struct output-port
            backend
@@ -179,11 +182,11 @@
            (raise 'fdopen-invalid-direction))))
 
 (def (open-input-file2 path)
-  (withs (fd      (unix-open path 'input 0)
-          backend (if (< fd 0)
-                      (raise 'open-failed)
-                      (make-fdport fd path true))
-          buf     (make-bytevector (get-block-size backend)))
+  (withs (fd     (unix-open path 'input 0)
+          fdport (if (< fd 0)
+                     (raise 'open-failed)
+                     (make-fdport fd path true))
+          buf    (make-bytevector (get-block-size fdport)))
     (make-input-port backend buf 0 0 true)))
 
 (when (test-on-import)

@@ -296,18 +296,6 @@
                (quote ,(cadr (car params)))
                (fn ,(cons (caar params) (cdr params)) ,@body))))
 
-(def (vector-empty? x) (= (vector-size x) 0))
-(def (string-empty? x) (= (string-length x) 0))
-(def (dict-empty? x) (= (dict-size x) 0))
-
-(def (empty? x)
-  (if (pair? x)   false
-      (null? x)   true
-      (vector? x) (vector-empty? x)
-      (string? x) (string-empty? x)
-      (dict? x)   (dict-empty? x)
-                  (error 'empty "not a container")))
-
 (def (ref x k)
   (if (vector? x) (vector-ref x k)
       (bytes? x)  (bytes-ref x k)
@@ -356,11 +344,6 @@
 (def (max &rest xs) (best > xs))
 
 (def (neg f) (fn (x) (not (f x))))
-
-(def (capacity x)
-  (if (vector? x) (vector-capacity x)
-      (bytes? x)  (bytevector-capacity x)
-      (string? x) (string-capacity x)))
 
 (def (push-back x value)
   (if (vector? x) (vector-push-back x value)
@@ -463,7 +446,7 @@
 
 (current-exception-handler default-exception-handler)
 
-(def (read-char &opt (s nil) (skip-space false))
+(def (read-char s &opt (skip-space false))
   (if skip-space (peek-char s true))
   (cl-read-char s))
 
@@ -740,10 +723,11 @@
   (w/stdout s
     (print "<fn " (fn-params x) #\>)))
 
+(import struct)
+;(import ports)
 (import math)
 (import strings)
 (import seq)
-(import struct)
 (import records)
 (import ranges)
 (import algorithms)

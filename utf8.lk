@@ -1,3 +1,5 @@
+(def utf8-max-rune-length 6)
+
 (def (utf8-rune-length r)
   (let x (char-code r)
     (if (< x       #x80) 1
