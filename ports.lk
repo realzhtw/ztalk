@@ -174,7 +174,7 @@
     (output-port-set-is-open false)))
 
 (def (fdopen fd dir)
-  (let buf-size (file-info-block-size (fstat fd))
+  (let buf-size (file-info-block-size (fdport-stat fd))
     (case dir
       'in  (raise 'not-implemented)
       'out (make-output-port fd unix-write unix-close
@@ -182,12 +182,12 @@
            (raise 'fdopen-invalid-direction))))
 
 (def (open-input-file2 path)
-  (withs (fd     (unix-open path 'input 0)
-          fdport (if (< fd 0)
-                     (raise 'open-failed)
-                     (make-fdport fd path true))
-          buf    (make-bytevector (get-block-size fdport)))
-    (make-input-port backend buf 0 0 true)))
+  (withs (fd  (unix-open path 'input 0)
+          p   (if (< fd 0)
+                  (raise 'open-failed)
+                  (make-fdport fd path))
+          buf (make-bytevector (file-info-block-size (fdport-stat p))))
+    (make-input-port p buf 0 0)))
 
 (when (test-on-import)
   true

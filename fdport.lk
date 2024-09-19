@@ -1,7 +1,6 @@
 (struct fdport
-           fd
-           name
-  &mutable is-open)
+  fd
+  name)
 
 (def (fdport-read p buf start end)
   (unix-read (fdport-fd p) buf start end))
@@ -13,8 +12,7 @@
   (unix-lseek (fdport-fd p) offset whence))
 
 (def (fdport-close p)
-  (unix-close (fdport-fd p))
-  (fdport-set-is-open p false))
+  (unix-close (fdport-fd p)))
 
 (struct file-info
   dev inode mode nlinks uid gid rdev size

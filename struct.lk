@@ -25,10 +25,8 @@
          (def (,type-test x) (is-a x (quote ,name)))
 
          ,@(accumulate acc
-             (let i 0
-               (for field fields
-                 (acc `(def (,(getter field) x) (vector-ref (rep x) ,i))))
-                 (set i (+ i 1))))
+             (for [i field] (enumerate fields 0)
+               (acc `(def (,(getter field) x) (vector-ref (rep x) ,i)))))
 
          ,@(accumulate acc
              (for [i field] mutable-fields

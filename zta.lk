@@ -446,6 +446,14 @@
 
 (current-exception-handler default-exception-handler)
 
+(def (skip-space s)
+  (if-let c (input-port-peek-rune s)
+    (and (white-space s) (skip-space s))
+    nil))
+
+(def (peek-char s &opt (skip-space? false))
+  (cl-peek-char s skip-space?))
+
 (def (read-char s &opt (skip-space false))
   (if skip-space (peek-char s true))
   (cl-read-char s))
@@ -723,11 +731,11 @@
   (w/stdout s
     (print "<fn " (fn-params x) #\>)))
 
+(import seq)
 (import struct)
-;(import ports)
+(import ports)
 (import math)
 (import strings)
-(import seq)
 (import records)
 (import ranges)
 (import algorithms)
