@@ -13,6 +13,13 @@
   &mutable buf-rdpos
   &mutable buf-wrpos)
 
+(def-method (write (x input-port) s)
+  (let backend (input-port-backend x)
+    (w/stdout s
+      (if (fdport? backend)
+          (print "<file-input-port name=\"" (fdport-name backend) "\" buf=" (input-port-buffer-size x) " bytes>")
+          (print "<input-port>")))))
+
 (def (input-port-buffer-size s) (bytevector-size (input-port-buffer s)))
 
 (def (input-port-buffer-advance-rdpos s n)
@@ -69,19 +76,19 @@
         (input-port-buffer-advance-rdpos s n)
         n)))
 
-(def (input-port-peek-byte s)
+(def (peek-byte s)
   (if (input-port-ensure-buffer s 1)
-    (bytes-ref (input-port-buffer s) (input-port-buf-rdpos s))
+    (bytevector-ref (input-port-buffer s) (input-port-buf-rdpos s))
     nil))
 
-(def (input-port-read-byte s)
-  (let b (input-port-peek-byte s)
+(def (read-byte s)
+  (let b (peek-byte s)
     (if b
         (input-port-buffer-advance-rdpos s 1))
     b))
 
-(def (input-port-peek-rune s)
-  (if-let b (input-port-peek-byte s)
+(def (peek-rune s)
+  (if-let b (peek-byte s)
     (let n (utf8-decode-rune-length b)
       (if (or (null? n)
               (not (input-port-ensure-buffer s n)))
@@ -90,14 +97,14 @@
                         (input-port-buf-rdpos s)))
     nil))
 
-(def (input-port-read-rune s)
-  (let c (input-port-peek-rune s)
+(def (read-rune s)
+  (let c (peek-rune s)
     (if c
         (input-port-buffer-advance-rdpos s (utf8-rune-length c)))
     c))
 
 (def (input-port-read-line s)
-  (if (input-port-peek-rune s)
+  (if (peek-rune s)
     (accumulate-to-utf8-string acc
       (whiler r (input-port-read-rune s) (not (in r nil #\newline))
         (acc r)))

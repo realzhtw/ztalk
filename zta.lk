@@ -241,7 +241,7 @@
 
 (macro (for-len var x &rest body)
   (w/uniq (iter n)
-    `(let ,n (length ,x)
+    `(let ,n (len ,x)
        ((rfn (,iter ,var)
           (when (< ,var ,n)
             ,@body
@@ -297,17 +297,11 @@
                (fn ,(cons (caar params) (cdr params)) ,@body))))
 
 (def (ref x k)
-  (if (vector? x) (vector-ref x k)
-      (bytes? x)  (bytes-ref x k)
-      (string? x) (string-ref x k)
-      (dict? x)   (dict-ref x k)
-      (pair? x)   (list-ref x k)))
-
-(def (length x)
-  (if (vector? x) (vector-size x)
-      (bytes? x)  (bytesvector-size x)
-      (string? x) (string-length x)
-      (list? x)   (list-length x)))
+  (if (vector? x)     (vector-ref x k)
+      (bytevector? x) (bytevector-ref x k)
+      (string? x)     (string-ref x k)
+      (dict? x)       (dict-ref x k)
+      (pair? x)       (list-ref x k)))
 
 (macro (if-let var expr &rest rest)
   `(let ,var ,expr
@@ -345,10 +339,16 @@
 
 (def (neg f) (fn (x) (not (f x))))
 
-(def (push-back x value)
-  (if (vector? x) (vector-push-back x value)
-      (bytes? x)  (bytevector-push-back x value)
-      (string? x) (string-push-back x value)))
+(def-generic (len x))
+(def-method (len (x null)) 0)
+(def-method (len (x pair)) (list-length x))
+(def-method (len (x vector)) (vector-size x))
+(def-method (len (x string)) (string-length x))
+
+(def-generic (push-back x value))
+(def-method (push-back (x vector) value) (vector-push-back x value))
+(def-method (push-back (x bytevector) value) (bytevector-push-back x value))
+(def-method (push-back (x string) value) (string-push-back x value))
 
 (macro (accumulate-to-string acc-fn &rest body)
   (w/uniq (gs)
@@ -452,7 +452,11 @@
     nil))
 
 (def (peek-char s &opt (skip-space? false))
-  (cl-peek-char s skip-space?))
+  (if (or (null? s) (is-a s 'cl-stream))
+      (cl-peek-char s skip-space?)
+      (if skip-space?
+          (skip-space s)
+          (input-port-peek-rune s))))
 
 (def (read-char s &opt (skip-space false))
   (if skip-space (peek-char s true))
@@ -544,7 +548,13 @@
            (self (cons (sread s true) rs))))
    nil))
 
-(def (read-string &opt (s nil))
+(def (copy-string x)
+  (case (type x)
+        'string      (cl-copy-string x)
+        'utf8-string (copy-utf8-string x)
+                     (raise 'copy-string)))
+
+(def (read-string s)
   (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
     (if (is (read-char s) #\")
       (copy-string (accumulate-to-string acc
@@ -631,7 +641,7 @@
           nil))
      start)))
 
-(def (string-rfind s c) (string-rfind-next s c (- (length s) 1)))
+(def (string-rfind s c) (string-rfind-next s c (- (len s) 1)))
 
 (def (path-dirname p)
   (if-let i (string-rfind p #\/)
@@ -689,7 +699,7 @@
 (def (write-string x s)
   (string-for-each x (fn (c) (write-char c s))))
 
-(def-generic (write x s) (cl-write x s))
+(def-generic (write x s) (cl-write x s) none)
 
 (def-method (write (x none) s))
 
@@ -715,8 +725,6 @@
 
 (def-method (write (x symbol) s) (write-string (symbol-name x) s))
 
-(def-method (write (x iomanip) s) (x s))
-
 (def-method (write (x pair) s)
   (w/stdout s
     (print #\()
@@ -731,8 +739,13 @@
   (w/stdout s
     (print "<fn " (fn-params x) #\>)))
 
+(def-method (write (x iomanip) s) (x s))
+
+(def-generic (slice x start end))
+
 (import seq)
 (import struct)
+(import bytes)
 (import ports)
 (import math)
 (import strings)

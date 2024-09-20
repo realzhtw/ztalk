@@ -245,7 +245,7 @@
         ((functionp x)    '|lk|::|fn|)
         ((characterp x)   '|lk|::|char|)
         ((stringp x)      '|lk|::|string|)
-        ((bytesp x)       '|lk|::|bytes|)
+        ((bytevectorp x)  '|lk|::|bytevector|)
         ((vectorp x)      '|lk|::|vector|)
         ((hash-table-p x) '|lk|::|dict|)
         ((integerp x)     '|lk|::|int|)
@@ -339,7 +339,7 @@
 (zexport string-length (x))
 (defun substring (x i j) (declare (type string x)) (subseq x i j))
 (zexport substring (x i j))
-(zdefun copy-string (s) (copy-seq s))
+(zdefun cl-copy-string (s) (copy-seq s))
 
 (zdefun make-adjustable-string (&optional (n 0))
   (make-array n :element-type 'character
@@ -366,14 +366,14 @@
   (make-array (length xs) :element-type '(unsigned-byte 8)
                           :initial-contents xs))
 
-(defun bytesp (x)
+(defun bytevectorp (x)
   (and (arrayp x)
        (equal (array-element-type x) '(unsigned-byte 8))))
 
-(zdefun bytes? (x) (bytesp x))
+(zdefun bytevector? (x) (bytevectorp x))
 
-(zdefun bytes-ref (x i) (aref x i))
-(zdefun bytes-set (x i v) (setf (aref x i) v))
+(zdefun bytevector-ref (x i) (aref x i))
+(zdefun bytevector-set (x i v) (setf (aref x i) v))
 (zdefun bytevector-size (x) (length x))
 
 (zdefun copy-bytes (dst pos src start end) (replace dst src :start1 pos :start2 start :end2 end))

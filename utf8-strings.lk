@@ -1,10 +1,13 @@
 (import utf8)
 
-(def (make-utf8-string &opt bytes)
+(def (make-utf8-string &opt (bytes nil))
   (annotate 'utf8-string (or bytes (make-bytevector 0))))
 
 (def (make-adjustable-utf8-string &opt (n 0))
   (annotate 'utf8-string (make-adjustable-bytevector n)))
+
+(def (copy-utf8-string s)
+  (make-utf8-string (copy-bytes (rep s))))
 
 (def (utf8-string-size s) (bytevector-size (rep s)))
 
@@ -16,10 +19,13 @@
       (utf8-encode-rune c b m)
       s)))
 
+(def-method (push-back (x utf8-string) value)
+  (utf8-string-push-back x value))
+
 (macro (accumulate-to-utf8-string acc-fn &rest body)
   (w/uniq (gs)
     `(withs (,gs (make-adjustable-utf8-string)
-             ,acc-fn (fn (c) (utf8-string-push-back ,gs c)))
+             ,acc-fn (fn (r) (utf8-string-push-back ,gs r)))
        ,@body
        ,gs)))
 
@@ -28,9 +34,9 @@
          i 0
          n (utf8-string-size x))
     (while (< i n)
-      (let c (utf8-decode-rune b i)
-        (f c)
-        (set i (+ i (utf8-rune-length c)))))))
+      (let r (utf8-decode-rune b i)
+        (f r)
+        (set i (+ i (utf8-rune-length r)))))))
 
 (def (write-utf8-string x s)
   (write-char #\" s)

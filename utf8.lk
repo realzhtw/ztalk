@@ -32,14 +32,14 @@
                        nil))
 
 (def (utf8-decode-rune buf pos)
-  (let b0 (bytes-ref buf pos)
+  (let b0 (bytevector-ref buf pos)
     (if (< b0 #x80)
         (char b0)
         (withs (n (utf8-decode-rune-length b0)
                 x (bitwise-and b0 (- (<< 1 (- 7 n)) 1)))
           (for i (range 1 n)
             (set x (bitwise-or (<< x 6)
-                               (bitwise-and (bytes-ref buf (+ pos i)) #x3f))))
+                               (bitwise-and (bytevector-ref buf (+ pos i)) #x3f))))
           (char x)))))
 
 (when (test-on-import)
