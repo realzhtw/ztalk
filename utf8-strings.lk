@@ -40,7 +40,10 @@
 
 (def (write-utf8-string x s)
   (write-char #\" s)
-  (utf8-string-for-each x (fn (c) (write-char c s)))
+  (utf8-string-for-each x (fn (c)
+                            (if (is c #\")
+                                (write-string "\\\"" s)
+                                (write-char c s))))
   (write-char #\" s)
   x)
 

@@ -452,7 +452,7 @@
 (zdefun cl-sread (&optional s eof) (ztalk-read s nil eof))
 (zdefun cl-load (path) (load path))
 
-(zdefun cl-peek-char (&optional s skip-space) (peek-char skip-space s nil))
+(zdefun cl-peek-char (&optional s) (peek-char nil s nil))
 (zdefun cl-read-char (&optional s) (read-char s nil nil))
 
 (zdefun write-char (c &optional s) (write-char c s))

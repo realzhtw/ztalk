@@ -446,23 +446,24 @@
 
 (current-exception-handler default-exception-handler)
 
+(def (peek-char s)
+  (if (is-a s 'input-port)
+      (peek-rune s)
+      (cl-peek-char s)))
+
 (def (skip-space s)
-  (if-let c (input-port-peek-rune s)
-    (and (white-space s) (skip-space s))
+  (if-let c (peek-char s)
+    (if (whitespace? c)
+        (do (read-char s) (skip-space s))
+         c)
     nil))
 
-(def (peek-char s &opt (skip-space? false))
-  (if (or (null? s) (is-a s 'cl-stream))
-      (cl-peek-char s skip-space?)
-      (if skip-space?
-          (skip-space s)
-          (input-port-peek-rune s))))
+(def (read-char s)
+  (if (is-a s 'input-port)
+      (read-rune s)
+      (cl-read-char s)))
 
-(def (read-char s &opt (skip-space false))
-  (if skip-space (peek-char s true))
-  (cl-read-char s))
-
-(def (read-line &opt (s nil))
+(def (read-line s)
   (if (peek-char s)
     (accumulate-to-string acc
       (whiler c (read-char s) (not (in c nil #\newline))
@@ -528,7 +529,7 @@
     nil))
 
 (def (skip-space-and-comments &opt (s nil))
-  (if-let c (peek-char s true)
+  (if-let c (skip-space s)
     (if (is c #\;)
         (if (skip-line s)
             (skip-space-and-comments s)

@@ -106,7 +106,7 @@
 (def (input-port-read-line s)
   (if (peek-rune s)
     (accumulate-to-utf8-string acc
-      (whiler r (input-port-read-rune s) (not (in r nil #\newline))
+      (whiler r (read-rune s) (not (in r nil #\newline))
         (acc r)))
     nil))
 
