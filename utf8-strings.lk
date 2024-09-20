@@ -54,4 +54,4 @@
   (write-char #\" s)
   x)
 
-(def-method (write (x utf8-string) s) (write-utf8-string x s))
+(def-method (write-object (x utf8-string) s) (write-utf8-string x s))

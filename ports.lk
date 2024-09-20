@@ -4,6 +4,7 @@
 
 (def-generic (read src buf start end))
 (def-method (read (src fdport) buf start end) (fdport-read src buf start end))
+(def-generic (write src buf start end))
 (def-method (write (src fdport) buf start end) (fdport-write src buf start end))
 
 ; input port
@@ -13,7 +14,7 @@
   &mutable buf-rdpos
   &mutable buf-wrpos)
 
-(def-method (write (x input-port) s)
+(def-method (write-object (x input-port) s)
   (let backend (input-port-backend x)
     (w/stdout s
       (if (fdport? backend)
@@ -75,6 +76,11 @@
                               n)
         (input-port-buffer-advance-rdpos s n)
         n)))
+
+(def (close-input-port s)
+  (close (input-port-backend s)))
+
+(def-method (close (x input-port)) (close-input-port x))
 
 (def (peek-byte s)
   (if (input-port-ensure-buffer s 1)

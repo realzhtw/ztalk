@@ -455,7 +455,7 @@
   (if-let c (peek-char s)
     (if (whitespace? c)
         (do (read-char s) (skip-space s))
-         c)
+        c)
     nil))
 
 (def (read-char s)
@@ -510,7 +510,7 @@
 (def (print &rest args)
   (let s (stdout)
     (for x args
-      (write x s))))
+      (write-object x s))))
 
 (def (println &rest args)
   (apply print args)
@@ -682,7 +682,7 @@
 (def (make-padding mortar)
   (make-iomanip (let first true
                   (fn (s)
-                    (if first (reset first) (write mortar s))))))
+                    (if first (reset first) (write-object mortar s))))))
 
 (macro (w/padding name mortar &rest body)
   `(let ,name (make-padding ,mortar)
@@ -700,47 +700,47 @@
 (def (write-string x s)
   (string-for-each x (fn (c) (write-char c s))))
 
-(def-generic (write x s) (cl-write x s) none)
+(def-generic (write-object x s) (cl-write x s) none)
 
-(def-method (write (x none) s))
+(def-method (write-object (x none) s))
 
-(def-method (write (x string) s) (write-string x s))
+(def-method (write-object (x string) s) (write-string x s))
 
-(def-method (write (x vector) s)
+(def-method (write-object (x vector) s)
   (w/stdout s
     (print #\[)
     (print-all x)
     (print #\])))
 
-(def-method (write (x dict) s)
+(def-method (write-object (x dict) s)
   (write-char #\{ s)
   (w/padding p #\space
     (dict-for-each x (fn (key value)
-                       (write p s)
-                       (write key s)
-                       (write p s)
-                       (write value s))))
+                       (write-object p s)
+                       (write-object key s)
+                       (write-object p s)
+                       (write-object value s))))
   (write-char #\} s))
 
-(def-method (write (x char) s) (write-char x s))
+(def-method (write-object (x char) s) (write-char x s))
 
-(def-method (write (x symbol) s) (write-string (symbol-name x) s))
+(def-method (write-object (x symbol) s) (write-string (symbol-name x) s))
 
-(def-method (write (x pair) s)
+(def-method (write-object (x pair) s)
   (w/stdout s
     (print #\()
     (print-all x)
     (print #\))))
 
-(def-method (write (x macro) s)
+(def-method (write-object (x macro) s)
   (w/stdout s
     (print "<macro " (fn-params (rep x)) #\>)))
 
-(def-method (write (x fn) s)
+(def-method (write-object (x fn) s)
   (w/stdout s
     (print "<fn " (fn-params x) #\>)))
 
-(def-method (write (x iomanip) s) (x s))
+(def-method (write-object (x iomanip) s) (x s))
 
 (def-generic (slice x start end))
 

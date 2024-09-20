@@ -24,7 +24,7 @@
               (print "\\x" (hex-digit (div b 16)) (hex-digit b)))))
     (print #\")))
 
-(def-method (write (x bytevector) s)
+(def-method (write-object (x bytevector) s)
   (print-bytevector-slice s x 0 (bytevector-size x)))
 
 (struct bslice
@@ -32,7 +32,7 @@
   &mutable start
   &mutable end)
 
-(def-method (write (x bslice) s)
+(def-method (write-object (x bslice) s)
   (print-bytevector-slice s (bslice-bytevector x)
                             (bslice-start x)
                             (bslice-end x)))

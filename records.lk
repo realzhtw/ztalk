@@ -17,7 +17,7 @@
 
 (def (record? x) (is-a x 'record))
 
-(def-method (write (x record) s)
+(def-method (write-object (x record) s)
   (w/stdout s
     (let r (rep x)
       (print "<record:" (ref r 0) " [")
