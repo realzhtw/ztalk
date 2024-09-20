@@ -29,6 +29,13 @@
        ,@body
        ,gs)))
 
+(def-generic (as-utf8-string x))
+
+(def-method (as-utf8-string (x string))
+  (accumulate-to-utf8-string acc
+    (for c x
+      (acc c))))
+
 (def (utf8-string-for-each x f)
   (with (b (rep x)
          i 0

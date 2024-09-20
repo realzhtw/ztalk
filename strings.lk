@@ -6,11 +6,11 @@
            (self (+ i 1)))))
    start))
 
-(def (string-find s c) (string-find-next s c 0 (length s)))
+(def (string-find s c) (string-find-next s c 0 (len s)))
 
 (def (split-string s c)
   (accumulate-to-vector acc
-    (let end (length s)
+    (let end (len s)
       (if (> end 0)
         ((afn (i)
            (let j (string-find-next s c i end)
@@ -20,7 +20,7 @@
          0)))))
 
 (def (starts-with s pref)
-  (and (<= (length pref) (length s))
+  (and (<= (len pref) (len s))
        (point ret
          (for-len i pref
            (if (not (eq (string-ref s i)

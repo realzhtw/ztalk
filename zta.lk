@@ -659,7 +659,7 @@
 
 (def import-paths (make-adjustable-vector))
 
-(push-back import-paths (path-dirname (ref argv 0)))
+(push-back import-paths (path-dirname (ref cl-argv 0)))
 
 (def import-module
   (let loaded (make-dict 'equal)
@@ -755,6 +755,8 @@
 (import algorithms)
 (import sys)
 (import sockets)
+
+(def argv (accumulate-to-vector acc (for arg cl-argv (acc (as-utf8-string arg)))))
 
 (def repl-prompt "ztalk> ")
 

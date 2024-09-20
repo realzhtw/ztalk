@@ -112,7 +112,7 @@
      0)))
 
 (def (vector-sort x)
-  (if (< (length x) 150)
+  (if (< (len x) 150)
       (vector-insertsort x)
       (vector-smoothsort x)))
 
