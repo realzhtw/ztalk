@@ -1,0 +1,54 @@
+(def-method (len (x bytevector)) (bytevector-size x))
+
+(def-method (for-each (x bytevector) f)
+  (for-len i x
+    (f (bytevector-ref x i))))
+
+(def (in-range? x a b) (and (<= a x) (< x b)))
+
+(def (ascii-printable? x) (in-range? x 32 128))
+
+(def hex-digit
+  (let hex-digits [#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9
+                   #\a #\b #\c #\d #\e #\f]
+    (fn (x)
+      (print (vector-ref hex-digits (mod x 16))))))
+
+(def (print-bytevector-slice s buf start end)
+  (w/stdout s
+    (print "b\"")
+      (for i (range start end)
+        (let b (bytevector-ref buf i)
+          (if (ascii-printable? b)
+              (print (char b))
+              (print "\\x" (hex-digit (div b 16)) (hex-digit b)))))
+    (print #\")))
+
+(def-method (write (x bytevector) s)
+  (print-bytevector-slice s x 0 (bytevector-size x)))
+
+(struct bslice
+  bytevector
+  &mutable start
+  &mutable end)
+
+(def-method (write (x bslice) s)
+  (print-bytevector-slice s (bslice-bytevector x)
+                            (bslice-start x)
+                            (bslice-end x)))
+
+(def (bslice x start end) (make-bslice x start end))
+(def-method (slice (x 'bytevector)) (bslice x start end))
+
+(def (bslice-size x) (- (bslice-end x) (bslice-start x)))
+
+(def (copy-bslice x)
+  (with (b     (bslice-bytevector x)
+         start (bslice-start x)
+         end   (bslice-end x))
+  (let r (make-bytevector (- end start))
+    (copy-bytes r 0 b start end)
+    r)))
+
+(def-method (slice (x bytevector) start end)
+  (bslice x start end))

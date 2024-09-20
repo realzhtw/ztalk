@@ -13,13 +13,14 @@
 (def (utf8-encode-rune r buf pos)
   (let x (char-code r)
     (if (< x #x80)
-        (do (bytes-set buf pos x) 1)
+        (do (bytevector-set buf pos x) 1)
         (let n (utf8-rune-length r)
-          (bytes-set buf pos (bitwise-or (bitwise-and #xff (<< #xfc (- 6 n)))
-                                         (>> x (* (- n 1) 6))))
+          (bytevector-set buf pos (bitwise-or (bitwise-and #xff (<< #xfc (- 6 n)))
+                                              (>> x (* (- n 1) 6))))
           (for i (range 1 n)
-            (bytes-set buf (+ pos i) (bitwise-or #x80
-                                                 (bitwise-and #x3f (>> x (* (- n i 1) 6))))))
+            (bytevector-set buf (+ pos i)
+                                (bitwise-or #x80
+                                            (bitwise-and #x3f (>> x (* (- n i 1) 6))))))
           n))))
 
 (def (utf8-decode-rune-length b)
