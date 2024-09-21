@@ -197,7 +197,7 @@
 (defun compile-call (x env k)
   (let ((args (gensyms (length x))))
     (compile-many x '() env
-      `(lambda ,args (funcall (rep ,(car args)) ,k ,@(cdr args))))))
+      `(lambda ,args (funcall ,(car args) ,k ,@(cdr args))))))
 
 (declaim (ftype (function (t t) t) expand-qquoted-list))
 
@@ -304,10 +304,9 @@
 
 (zdef call/cc
   (lambda (k f)
-    (funcall f k (annotate '|lk|::|cont|
-                           (lambda (k2 k3)
-                             (declare (ignore k2))
-                             (funcall k k3))))))
+    (funcall f k (lambda (k2 k3)
+                   (declare (ignore k2))
+                   (funcall k k3)))))
 
 (zdef apply (lambda (k f args)
   (apply f (cons k args))))
@@ -359,9 +358,11 @@
 (zdefun vector-push-back (x value) (vector-push-extend value x) x)
 (zdefun vector-capacity (x) (array-total-size x))
 
-(zdefun make-bytevector (n &optional (x 0))
-  (make-array n :element-type '(unsigned-byte 8)
-                :initial-element x))
+(defun make-bytevector (n)
+  (make-array n :element-type '(unsigned-byte 8)))
+
+(zexport make-bytevector (n))
+
 (zdefun bytes (&rest xs)
   (make-array (length xs) :element-type '(unsigned-byte 8)
                           :initial-contents xs))
@@ -456,7 +457,7 @@
 (zdefun cl-read-char (&optional s) (read-char s nil nil))
 
 (zdefun write-char (c &optional s) (write-char c s))
-(zdefun cl-write (x &optional s) (write x :stream s))
+(zdefun cl-write (x s) (write x :stream s))
 (zdefun cl-print (x &optional s) (princ x s))
 (zdefun flush-output (&optional s) (finish-output s))
 
@@ -464,8 +465,35 @@
   (let ((*package* *ztalk-package*))
     (write x :stream s)))
 
-(zdef cl-argv (apply #'list (namestring *load-pathname*) (cdr sb-ext:*posix-argv*)))
-;(zdef argv (apply #'vector (namestring *load-pathname*) (cdr sb-ext:*posix-argv*)))
+(defun c-strlen (s)
+  (let ((f (sb-alien:extern-alien "strlen" (function sb-alien:size-t (* sb-alien:char)))))
+    (sb-alien:alien-funcall f s)))
+
+(defun c-memmove (dst src n)
+  (let ((f (sb-alien:extern-alien "memmove"
+                                  (function (* sb-alien:char)
+                                            (* sb-alien:char) (* sb-alien:char) sb-alien:size-t))))
+    (sb-alien:alien-funcall f dst src n)))
+
+(defun c-string-to-bytevector (s)
+  (let* ((n (c-strlen s))
+         (r (make-bytevector n)))
+    (sb-sys:with-pinned-objects (r)
+      (c-memmove (sb-sys:vector-sap r) s n))
+    r))
+
+(zdef argv
+  (let ((c-argv (sb-alien:extern-alien "posix_argv" (* (* sb-alien:char)))))
+    (loop for i from 0
+      with result = (make-array 0 :fill-pointer 0)
+      for arg = (sb-alien:alien-sap (sb-alien:deref c-argv i))
+      while (not (= (sb-sys:sap-int arg) 0))
+      do (vector-push-extend (annotate '|lk|::|utf8-string| (c-string-to-bytevector arg)) result)
+      finally (return result))))
+
+(zdef load-pathname *load-pathname*)
+(zdef cl-posix-argv sb-ext:*posix-argv*)
+(zdef cl-argv (apply #'vector (namestring *load-pathname*) (cdr sb-ext:*posix-argv*)))
 
 (zdefun exit (&optional code) (sb-ext:quit :unix-status (or code 0)))
 

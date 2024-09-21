@@ -499,6 +499,12 @@
 (def (make-iomanip f)
   (annotate 'iomanip f))
 
+(def (apply-iomanip m s)
+  ((rep m) s))
+
+(macro (iomanip s &rest body)
+  `(make-iomanip (fn (,s) ,@body)))
+
 (macro (def-iomanip sig &rest body)
   `(set ,(car sig) (make-iomanip (fn ,(cdr sig) ,@body))))
 
@@ -700,7 +706,11 @@
 (def (write-string x s)
   (string-for-each x (fn (c) (write-char c s))))
 
-(def-generic (write-object x s) (cl-write x s) none)
+(def-generic (write-object x s)
+  (if (is-a s 'input-port)
+      (write-string "<unknown object>" s)
+      (cl-write x s))
+  none)
 
 (def-method (write-object (x none) s))
 
@@ -740,7 +750,12 @@
   (w/stdout s
     (print "<fn " (fn-params x) #\>)))
 
-(def-method (write-object (x iomanip) s) (x s))
+(def-method (write-object (x iomanip) s)
+  (apply-iomanip x s))
+
+(def-generic (serialize x s) (write-object x s))
+
+;(def-method (serialize (x 'int) s) (
 
 (def-generic (slice x start end))
 
@@ -756,12 +771,14 @@
 (import sys)
 (import sockets)
 
-(def argv (accumulate-to-vector acc (for arg cl-argv (acc (as-utf8-string arg)))))
+;(def argv (accumulate-to-vector acc (for arg cl-argv (acc (as-utf8-string arg)))))
 
 (def repl-prompt "ztalk> ")
 
 (def (print-repl-prompt)
   (print repl-prompt flush))
+
+(def (repr x) (iomanip s (serialize x s)))
 
 (def (repl)
   (with (prompt-and-read (fn ()
@@ -772,6 +789,6 @@
     (whiler e (prompt-and-read) (not (eof? e))
       (let x (guard on-error (eval e))
         (unless (no x)
-          (println x))))))
+          (println (repr x)))))))
 
 (repl)
