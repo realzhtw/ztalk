@@ -237,21 +237,26 @@
 
 (defun filep (x) (and (streamp x) (subtypep (type-of x) 'file-stream)))
 
+(defvar type-stats (make-hash-table))
+
 (defun ztalk-type (x)
-  (cond ((tagged-p x)     (tagged-tag x))
-        ((consp x)        '|lk|::|pair|)
-        ((null x)         '|lk|::|null|)
-        ((symbolp x)      '|lk|::|symbol|)
-        ((functionp x)    '|lk|::|fn|)
-        ((characterp x)   '|lk|::|char|)
-        ((stringp x)      '|lk|::|string|)
-        ((bytevectorp x)  '|lk|::|bytevector|)
-        ((vectorp x)      '|lk|::|vector|)
-        ((hash-table-p x) '|lk|::|dict|)
-        ((integerp x)     '|lk|::|int|)
-        ((streamp x)      '|lk|::|cl-stream|)
-        ((floatp x)       '|lk|::|float|)
-        (t                (error (format nil "Unknown type: ~S" x)))))
+  (let ((r
+    (cond ((tagged-p x)     (tagged-tag x))
+          ((consp x)        '|lk|::|pair|)
+          ((null x)         '|lk|::|null|)
+          ((symbolp x)      '|lk|::|symbol|)
+          ((functionp x)    '|lk|::|fn|)
+          ((characterp x)   '|lk|::|char|)
+          ((stringp x)      '|lk|::|string|)
+          ((bytevectorp x)  '|lk|::|bytevector|)
+          ((vectorp x)      '|lk|::|vector|)
+          ((hash-table-p x) '|lk|::|dict|)
+          ((integerp x)     '|lk|::|int|)
+          ((streamp x)      '|lk|::|cl-stream|)
+          ((floatp x)       '|lk|::|float|)
+          (t                (error (format nil "Unknown type: ~S" x))))))
+    (incf (gethash r type-stats 0))
+    r))
 
 (defun rep (x)
   (if (tagged-p x)
@@ -299,6 +304,8 @@
   (if (eq (car params) '&rest)
       `(zdefun ,name ,params (apply #',name ,(cadr params)))
       `(zdefun ,name ,params ,(cons name params))))
+
+(zdef type-stats type-stats)
 
 (zdef none (annotate '|lk|::|none| nil))
 
@@ -459,7 +466,7 @@
 (zdefun write-char (c &optional s) (write-char c s))
 (zdefun cl-write (x s) (write x :stream s))
 (zdefun cl-print (x &optional s) (princ x s))
-(zdefun flush-output (&optional s) (finish-output s))
+(zdefun cl-flush-output (&optional s) (finish-output s))
 
 (zdefun write-symbol (x &optional s)
   (let ((*package* *ztalk-package*))

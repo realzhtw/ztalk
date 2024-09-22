@@ -11,8 +11,11 @@
 (def (fdport-seek p offset whence)
   (unix-lseek (fdport-fd p) offset whence))
 
-(def (fdport-close p)
+(def (close-fdport p)
   (unix-close (fdport-fd p)))
+
+(def-method (close (x fdport))
+  (close-fdport x))
 
 (struct file-info
   dev inode mode nlinks uid gid rdev size

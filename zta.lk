@@ -439,6 +439,11 @@
 (macro (w/stderr s &rest body)
   `(w/param stdout ,s ,@body))
 
+(def (flush-output s)
+  (if (is-a s 'output-port)
+      (flush-output-port s)
+      (cl-flush-output s)))
+
 (def (default-exception-handler e)
   (w/stdout (stderr)
     (println "Unhandled exception: " e)
