@@ -47,8 +47,10 @@
 
 (def (write-utf8-string x s)
   (if (is-a s 'output-port)
-      (write s (rep x))
+      (write-bytes s (rep x))
       (utf8-string-for-each x (fn (c) (write-char c s)))))
+
+(def-method (write-object (x utf8-string) s) (write-utf8-string x s))
 
 (def-method (serialize (x utf8-string) s)
   (write-char #\" s)
@@ -58,4 +60,3 @@
                                 (write-char c s))))
   (write-char #\" s))
 
-(def-method (write-object (x utf8-string) s) (write-utf8-string x s))

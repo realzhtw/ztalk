@@ -30,5 +30,6 @@
 
          ,@(accumulate acc
              (for [i field] mutable-fields
+               (dict-set setters (getter field) (setter field))
                (acc `(def (,(setter field) x val)
                        (vector-set (rep x) ,i val)))))))))

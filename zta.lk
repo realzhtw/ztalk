@@ -1,15 +1,15 @@
-(set list (fn xs xs))
+(assign list (fn xs xs))
 
-(set macro
+(assign macro
   (annotate 'macro
             (fn (sig &rest body)
-              `(set ,(car sig)
+              `(assign ,(car sig)
                     (annotate 'macro (fn ,(cdr sig) ,@body))))))
 
 (macro (def sig &rest body)
   (if (symbol? sig)
-      `(set ,sig ,@body)
-      `(set ,(car sig) (fn ,(cdr sig) ,@body))))
+      `(assign ,sig ,@body)
+      `(assign ,(car sig) (fn ,(cdr sig) ,@body))))
 
 (macro (do &rest body)
   `((fn () ,@body)))
@@ -32,13 +32,10 @@
 (def (not x) (is x nil))
 (def (no x) (is x none))
 
-(macro (reset x)
-  `(set ,x nil))
-
 (macro (rfn sig &rest body)
   ((fn (name params)
      `((fn (,name)
-         (set ,name (fn ,params ,@body))
+         (assign ,name (fn ,params ,@body))
          ,name)
        nil))
    (car sig) (cdr sig)))
@@ -134,6 +131,26 @@
       `(with (,(car bindings) ,(cadr bindings))
          (withs ,(cddr bindings)
            ,@body))))
+
+(def setters (make-dict))
+
+(dict-set setters 'car 'set-car)
+(dict-set setters 'cdr 'set-cdr)
+
+(macro (set place value)
+  (if (symbol? place)
+      `(assign ,place ,value)
+      (let setter (dict-ref setters (car place))
+        `(,setter ,@(cdr place) ,value))))
+
+(macro (reset x)
+  `(set ,x nil))
+
+(macro (inc x &opt (n 1))
+  `(set ,x (+ ,x ,n)))
+
+(macro (dec x &opt (n 1))
+  `(set ,x (- ,x ,n)))
 
 (macro (w/uniq names &rest body)
   `(with ,(intersperse names (list-map (fn (_) '(gensym)) names))
@@ -439,10 +456,15 @@
 (macro (w/stderr s &rest body)
   `(w/param stdout ,s ,@body))
 
-(def (flush-output s)
-  (if (is-a s 'output-port)
-      (flush-output-port s)
-      (cl-flush-output s)))
+(def (write-char c x)
+  (if (is-a x 'output-port)
+      (write-rune c x)
+      (cl-write-char c x)))
+
+(def (flush-output x)
+  (if (is-a x 'output-port)
+      (flush-output-port x)
+      (cl-flush-output x)))
 
 (def (default-exception-handler e)
   (w/stdout (stderr)

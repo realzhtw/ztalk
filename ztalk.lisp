@@ -110,7 +110,7 @@
 (defun compile-literal (x k)
   (emit-funcall k (zt-to-cl-literal x)))
 
-(defun compile-set (x env k)
+(defun compile-assign (x env k)
   (let ((var (isolate-lexical (car x) env))
         (exp (cadr x)))
     (cond ((literalp  exp) (emit-funcall k `(setq ,var ,(zt-to-cl-literal exp))))
@@ -278,7 +278,7 @@
 (defun compile (x env k)
   (cond ((literalp x)                   (compile-literal x k))
         ((symbolp x)                    (compile-var x env k))
-        ((car-is x '|lk|::|set|)        (compile-set (cdr x) env k))
+        ((car-is x '|lk|::|assign|)     (compile-assign (cdr x) env k))
         ((car-is x '|lk|::|if|)         (compile-if (cdr x) env k))
         ((car-is x '|lk|::|fn|)         (compile-fn (cdr x) env k))
         ((car-is x '|lk|::|quote|)      (emit-funcall k `(quote ,(cadr x))))
@@ -463,7 +463,7 @@
 (zdefun cl-peek-char (&optional s) (peek-char nil s nil))
 (zdefun cl-read-char (&optional s) (read-char s nil nil))
 
-(zdefun write-char (c &optional s) (write-char c s))
+(zdefun cl-write-char (c s) (write-char c s))
 (zdefun cl-write (x s) (write x :stream s))
 (zdefun cl-print (x &optional s) (princ x s))
 (zdefun cl-flush-output (&optional s) (finish-output s))

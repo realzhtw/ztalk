@@ -14,7 +14,7 @@
 (zdefun unix-open (path mode perm)
   (let ((m (case mode
              (|lk|::|input|  sb-unix:O_RDONLY)
-             (|lk|::|output| (logior sb-unix:O_WRONLY sb-unix:O_CREAT))
+             (|lk|::|output| (logior sb-unix:O_WRONLY sb-unix:O_CREAT sb-unix:O_TRUNC))
              (|lk|::|append| sb-unix:O_APPEND))))
     (sb-posix:open path m perm)))
 
