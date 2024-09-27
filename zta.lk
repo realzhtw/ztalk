@@ -294,7 +294,7 @@
   (withs (name (car sig)
           params (cdr sig)
           args (list-map (fn (x) (if (pair? x) (car x) x)) (remove '&opt params))
-          vtable (symbol (string-append (symbol-name name) "-vtable"))
+          vtable (symbol (wstring-append (symbol-name name) "-vtable"))
           f (gensym))
     `(do
        (def ,vtable (make-dict))
@@ -309,7 +309,7 @@
 (macro (def-method sig &rest body)
   (withs (name (car sig)
           params (cdr sig)
-          vtable (symbol (string-append (symbol-name name) "-vtable")))
+          vtable (symbol (wstring-append (symbol-name name) "-vtable")))
     `(dict-set ,vtable
                (quote ,(cadr (car params)))
                (fn ,(cons (caar params) (cdr params)) ,@body))))
@@ -317,7 +317,7 @@
 (def (ref x k)
   (if (vector? x)     (vector-ref x k)
       (bytevector? x) (bytevector-ref x k)
-      (string? x)     (string-ref x k)
+      (wstring? x)     (wstring-ref x k)
       (dict? x)       (dict-ref x k)
       (pair? x)       (list-ref x k)))
 
@@ -361,17 +361,17 @@
 (def-method (len (x null)) 0)
 (def-method (len (x pair)) (list-length x))
 (def-method (len (x vector)) (vector-size x))
-(def-method (len (x string)) (string-length x))
+(def-method (len (x wstring)) (wstring-length x))
 
 (def-generic (push-back x value))
 (def-method (push-back (x vector) value) (vector-push-back x value))
 (def-method (push-back (x bytevector) value) (bytevector-push-back x value))
-(def-method (push-back (x string) value) (string-push-back x value))
+(def-method (push-back (x wstring) value) (wstring-push-back x value))
 
-(macro (accumulate-to-string acc-fn &rest body)
+(macro (accumulate-to-wstring acc-fn &rest body)
   (w/uniq (gs)
-    `(withs (,gs (make-adjustable-string)
-             ,acc-fn (fn (c) (string-push-back ,gs c)))
+    `(withs (,gs (make-adjustable-wstring)
+             ,acc-fn (fn (c) (wstring-push-back ,gs c)))
        ,@body
        ,gs)))
 
@@ -401,7 +401,7 @@
 (def-generic (for-each x f))
 
 (def-method (for-each (x vector) f) (vector-for-each x f))
-(def-method (for-each (x string) f) (string-for-each x f))
+(def-method (for-each (x wstring) f) (wstring-for-each x f))
 (def-method (for-each (x null) f)   none)
 (def-method (for-each (x pair) f)   (list-for-each x f))
 (def-method (for-each (x dict) f)   (dict-for-each x f))
@@ -416,7 +416,7 @@
 
 (def (append &rest xs)
   (let x (car xs)
-    (if (string? x) (apply string-append xs)
+    (if (wstring? x) (apply wstring-append xs)
         (list? x)   (apply list-append xs)
         (vector? x) (apply vector-append xs))))
 
@@ -493,7 +493,7 @@
 
 (def (read-line s)
   (if (peek-char s)
-    (accumulate-to-string acc
+    (accumulate-to-wstring acc
       (whiler c (read-char s) (not (in c nil #\newline))
         (acc c)))
     nil))
@@ -504,14 +504,14 @@
       (is c #\newline)
       (is c #\return)))
 
-(macro (with-input-from-string var str &rest body)
-  `(let ,var (open-input-string ,str)
+(macro (with-input-from-wstring var str &rest body)
+  `(let ,var (open-input-wstring ,str)
      ,@body))
 
-(macro (with-output-to-string var &rest body)
-  `(let ,var (open-output-string)
+(macro (with-output-to-wstring var &rest body)
+  `(let ,var (open-output-wstring)
      ,@body
-     (get-output-string ,var)))
+     (get-output-wstring ,var)))
 
 (def-generic (close x))
 (def-method (close (x cl-stream)) (cl-close x))
@@ -583,28 +583,22 @@
            (self (cons (sread s true) rs))))
    nil))
 
-(def (copy-string x)
-  (case (type x)
-        'string      (cl-copy-string x)
-        'utf8-string (copy-utf8-string x)
-                     (raise 'copy-string)))
-
-(def (read-string s)
-  (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
+(def (read-wstring s)
+  (let next-char (fn () (or (read-char s) (error 'read-wstring "unexpected end of file")))
     (if (is (read-char s) #\")
-      (copy-string (accumulate-to-string acc
-                     (whiler c (next-char) (isnt c #\")
-                       (case c
-                         #\\ (case-let nc (next-char)
-                               #\n (acc #\newline)
-                               #\t (acc #\tab)
-                                   (acc nc))
-                             (acc c)))))
+      (copy-wstring (accumulate-to-wstring acc
+                      (whiler c (next-char) (isnt c #\")
+                        (case c
+                          #\\ (case-let nc (next-char)
+                                #\n (acc #\newline)
+                                #\t (acc #\tab)
+                                    (acc nc))
+                              (acc c)))))
       nil)))
 
-(def (read-atom-as-string &opt (s nil))
+(def (read-atom-as-wstring &opt (s nil))
   (if (skip-space-and-comments s)
-    (accumulate-to-string acc
+    (accumulate-to-wstring acc
       (whiler c (peek-char s) (and c (not (atom-delimiter? c)))
         (acc (read-char s))))
     nil))
@@ -616,7 +610,7 @@
 
 (def (read-until test &opt (s nil))
   (let f (testify test)
-    (accumulate-to-string acc
+    (accumulate-to-wstring acc
       (whiler c (peek-char s) (and c (not (f c)))
         (acc (read-char s))))))
 
@@ -625,8 +619,8 @@
   (def (eof? x) (is x eof))
 
   (def (read-atom &opt (s nil))
-    (if-let str (read-atom-as-string s)
-      (let x (with-input-from-string ss str (cl-sread ss))
+    (if-let str (read-atom-as-wstring s)
+      (let x (with-input-from-wstring ss str (cl-sread ss))
         (let c (peek-char s)
           (if (in c #\_)
               (do (read-char s)
@@ -636,22 +630,22 @@
       eof))
 
   (def (read-hash-value &opt (s nil))
-    (let next-char (fn () (or (read-char s) (error 'read-string "unexpected end of file")))
+    (let next-char (fn () (or (read-char s) (raise 'read-hash-value)))
       (if (is (and (skip-space-and-comments s) (read-char s)) #\#)
-        (let str (with-output-to-string ss
+        (let str (with-output-to-wstring ss
                    (w/stdout ss
                      (case-let c (next-char)
                        #\\ (let nc (next-char)
                              (print #\# c nc (unless (atom-delimiter? nc)
                                                      (read-until atom-delimiter? s))))
                            (print #\# c (read-until atom-delimiter? s)))))
-          (with-input-from-string ss str (cl-sread ss)))
+          (with-input-from-wstring ss str (cl-sread ss)))
         nil)))
 
   (def (sread &opt (s nil) (error-on-eof nil))
     (case-let c (skip-space-and-comments s)
       nil (if error-on-eof (error "Unexpected EOF.") eof)
-      #\" (read-string s)
+      #\" (read-wstring s)
       #\# (read-hash-value s)
       #\( (do (read-char s) (read-delimited-list #\) s))
       #\[ (do (read-char s) (cons 'vector (read-delimited-list #\] s)))
@@ -666,21 +660,21 @@
           (read-atom s)))
 )
 
-(def (string-rfind-next s c start)
+(def (wstring-rfind-next s c start)
   (let test (testify c)
     ((afn (i)
       (if (>= i 0)
-          (if (test (string-ref s i))
+          (if (test (wstring-ref s i))
               i
               (self (- i 1)))
           nil))
      start)))
 
-(def (string-rfind s c) (string-rfind-next s c (- (len s) 1)))
+(def (wstring-rfind s c) (wstring-rfind-next s c (- (len s) 1)))
 
 (def (path-dirname p)
-  (if-let i (string-rfind p #\/)
-    (substring p 0 i)
+  (if-let i (wstring-rfind p #\/)
+    (wsubstring p 0 i)
     p))
 
 (def (load path)
@@ -702,7 +696,7 @@
       (let filename (append name ".lk")
         (point done
           (for path import-paths
-            (let filepath (string-append path #\/ filename)
+            (let filepath (wstring-append path #\/ filename)
               (when (file-exists filepath)
                 (when (or (not (dict-ref loaded filepath)) force)
                   (load filepath)
@@ -727,22 +721,22 @@
     (for x xs
       (print p x))))
 
-(def (string-for-each x f)
+(def (wstring-for-each x f)
   (for-len i x
-    (f (string-ref x i))))
+    (f (wstring-ref x i))))
 
-(def (write-string x s)
-  (string-for-each x (fn (c) (write-char c s))))
+(def (write-wstring x s)
+  (wstring-for-each x (fn (c) (write-char c s))))
 
 (def-generic (write-object x s)
   (if (is-a s 'input-port)
-      (write-string "<unknown object>" s)
+      (write-wstring "<unknown object>" s)
       (cl-write x s))
   none)
 
 (def-method (write-object (x none) s))
 
-(def-method (write-object (x string) s) (write-string x s))
+(def-method (write-object (x wstring) s) (write-wstring x s))
 
 (def-method (write-object (x vector) s)
   (w/stdout s
@@ -762,7 +756,7 @@
 
 (def-method (write-object (x char) s) (write-char x s))
 
-(def-method (write-object (x symbol) s) (write-string (symbol-name x) s))
+(def-method (write-object (x symbol) s) (write-wstring (symbol-name x) s))
 
 (def-method (write-object (x pair) s)
   (w/stdout s
@@ -792,8 +786,8 @@
 (import bytes)
 (import ports)
 (import math)
+(import runes)
 (import strings)
-(import records)
 (import ranges)
 (import algorithms)
 (import sys)

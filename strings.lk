@@ -1,29 +1,60 @@
-(def (string-find-next s c start end)
-  ((afn (i)
-     (when (< i end)
-       (if (is (string-ref s i) c)
-           i
-           (self (+ i 1)))))
-   start))
+(def (make-string &opt (bytes nil))
+  (annotate 'string (or bytes (make-bytevector 0))))
 
-(def (string-find s c) (string-find-next s c 0 (len s)))
+(def (make-adjustable-string &opt (n 0))
+  (annotate 'string (make-adjustable-bytevector n)))
 
-(def (split-string s c)
-  (accumulate-to-vector acc
-    (let end (len s)
-      (if (> end 0)
-        ((afn (i)
-           (let j (string-find-next s c i end)
-             (acc (substring s i j))
-             (unless (null? j)
-               (self (+ j 1)))))
-         0)))))
+(def (copy-string s)
+  (make-string (copy-bytes (rep s))))
 
-(def (starts-with s pref)
-  (and (<= (len pref) (len s))
-       (point ret
-         (for-len i pref
-           (if (not (eq (string-ref s i)
-                        (string-ref pref i)))
-               (ret false)))
-         true)))
+(def (string-size s) (bytevector-size (rep s)))
+
+(def (string-push-back s c)
+  (let b (rep s)
+    (withs (m (bytevector-size b)
+            n (utf8-rune-length c))
+      (bytevector-resize b (+ m n))
+      (utf8-encode-rune c b m)
+      s)))
+
+(def-method (push-back (x string) value)
+  (string-push-back x value))
+
+(macro (accumulate-to-string acc-fn &rest body)
+  (w/uniq (gs)
+    `(withs (,gs (make-adjustable-string)
+             ,acc-fn (fn (r) (string-push-back ,gs r)))
+       ,@body
+       ,gs)))
+
+(def-generic (as-string x))
+
+(def-method (as-string (x wstring))
+  (accumulate-to-utf8-string acc
+    (for c x
+      (acc c))))
+
+(def (string-for-each x f)
+  (with (b (rep x)
+         i 0
+         n (string-size x))
+    (while (< i n)
+      (let r (utf8-decode-rune b i)
+        (f r)
+        (set i (+ i (utf8-rune-length r)))))))
+
+(def (write-string x s)
+  (if (is-a s 'output-port)
+      (write-bytes s (rep x))
+      (string-for-each x (fn (c) (write-char c s)))))
+
+(def-method (write-object (x string) s) (write-string x s))
+
+(def-method (serialize (x string) s)
+  (write-char #\" s)
+  (string-for-each x (fn (c)
+                            (if (is c #\")
+                                (write-string "\\\"" s)
+                                (write-char c s))))
+  (write-char #\" s))
+

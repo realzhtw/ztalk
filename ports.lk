@@ -1,6 +1,4 @@
 (import fdport)
-(import utf8)
-(import utf8-strings)
 
 (def-generic (read src buf start end))
 (def-method (read (src fdport) buf start end) (fdport-read src buf start end))
@@ -69,7 +67,7 @@
     (input-port-set-buf-wrpos p n)))
 
 (def (input-port-fill-buffer p)
-  (when (< (input-port-buffer-bytes-left p) utf8-max-rune-length)
+  (when (< (input-port-buffer-bytes-left p) max-rune-length)
     (input-port-reset-buffer p))
   (let n (read (input-port-backend p)
                (input-port-buffer p)
@@ -112,23 +110,23 @@
 
 (def (peek-rune p)
   (if-let b (peek-byte p)
-    (let n (utf8-decode-rune-length b)
+    (let n (decode-rune-length b)
       (if (or (null? n)
               (not (input-port-ensure-buffer p n)))
-          (raise 'invalid-utf8-sequence))
-      (utf8-decode-rune (input-port-buffer p)
-                        (input-port-buf-rdpos p)))
+          (raise 'invalid-rune))
+      (decode-rune (input-port-buffer p)
+                   (input-port-buf-rdpos p)))
     nil))
 
 (def (read-rune p)
   (let c (peek-rune p)
     (if c
-        (input-port-buffer-advance-rdpos p (utf8-rune-length c)))
+        (input-port-buffer-advance-rdpos p (rune-length c)))
     c))
 
 (def (input-port-read-line p)
   (if (peek-rune p)
-    (accumulate-to-utf8-string acc
+    (accumulate-to-string acc
       (whiler r (read-rune p) (not (in r nil #\newline))
         (acc r)))
     nil))
@@ -152,7 +150,7 @@
                  (raise 'open-failed)
                  (make-fdport fd path))
           n  (file-info-block-size (fdport-stat p))
-          buf (make-bytevector (+ n utf8-max-rune-length)))
+          buf (make-bytevector (+ n max-rune-length)))
     (make-output-port p buf 0 n)))
 
 (def (open-input-file2 path)

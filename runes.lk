@@ -1,6 +1,6 @@
-(def utf8-max-rune-length 6)
+(def max-rune-length 6)
 
-(def (utf8-rune-length r)
+(def (rune-length r)
   (let x (char-code r)
     (if (< x       #x80) 1
         (< x      #x800) 2
@@ -10,11 +10,11 @@
         (< x #x80000000) 6
                          nil)))
 
-(def (utf8-encode-rune r buf pos)
+(def (encode-rune r buf pos)
   (let x (char-code r)
     (if (< x #x80)
         (do (bytevector-set buf pos x) 1)
-        (let n (utf8-rune-length r)
+        (let n (rune-length r)
           (bytevector-set buf pos (bitwise-or (bitwise-and #xff (<< #xfc (- 6 n)))
                                               (>> x (* (- n 1) 6))))
           (for i (range 1 n)
@@ -23,7 +23,7 @@
                                             (bitwise-and #x3f (>> x (* (- n i 1) 6))))))
           n))))
 
-(def (utf8-decode-rune-length b)
+(def (decode-rune-length b)
   (if (= (>> b 7)   0) 1
       (= (>> b 5)   6) 2
       (= (>> b 4)  14) 3
@@ -32,11 +32,11 @@
       (= (>> b 1) 126) 6
                        nil))
 
-(def (utf8-decode-rune buf pos)
+(def (decode-rune buf pos)
   (let b0 (bytevector-ref buf pos)
     (if (< b0 #x80)
         (char b0)
-        (withs (n (utf8-decode-rune-length b0)
+        (withs (n (decode-rune-length b0)
                 x (bitwise-and b0 (- (<< 1 (- 7 n)) 1)))
           (for i (range 1 n)
             (set x (bitwise-or (<< x 6)
@@ -46,6 +46,6 @@
 (when (test-on-import)
   (with (buf (bytes 0 0 0 0)
          c   #\ю)
-    (utf8-encode-rune c buf 0)
-    (if (not (is c (utf8-decode-rune buf 0)))
+    (encode-rune c buf 0)
+    (if (not (is c (decode-rune buf 0)))
       (raise 'test-on-import))))

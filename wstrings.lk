@@ -1,0 +1,29 @@
+(def (wstring-find-next s c start end)
+  ((afn (i)
+     (when (< i end)
+       (if (is (string-ref s i) c)
+           i
+           (self (+ i 1)))))
+   start))
+
+(def (wstring-find s c) (string-find-next s c 0 (len s)))
+
+(def (split-wstring s c)
+  (accumulate-to-vector acc
+    (let end (len s)
+      (if (> end 0)
+        ((afn (i)
+           (let j (string-find-next s c i end)
+             (acc (substring s i j))
+             (unless (null? j)
+               (self (+ j 1)))))
+         0)))))
+
+(def (wstring-starts-with s pref)
+  (and (<= (len pref) (len s))
+       (point ret
+         (for-len i pref
+           (if (not (eq (string-ref s i)
+                        (string-ref pref i)))
+               (ret false)))
+         true)))
