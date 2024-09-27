@@ -293,6 +293,7 @@
 (macro (def-generic sig &rest body)
   (withs (name (car sig)
           params (cdr sig)
+          args (list-map (fn (x) (if (pair? x) (car x) x)) (remove '&opt params))
           vtable (symbol (string-append (symbol-name name) "-vtable"))
           f (gensym))
     `(do
@@ -300,7 +301,7 @@
        (def (,name ,@params)
          (let ,f (dict-ref ,vtable (type ,(car params)))
            (if ,f
-             (,f ,@(remove '&opt params))
+             (,f ,@args)
              ,(if (null? body)
                 `(error ,(car params) 'generic-not-defined)
                 `(do ,@body))))))))
@@ -784,7 +785,7 @@
 
 ;(def-method (serialize (x 'int) s) (
 
-(def-generic (slice x start end))
+(def-generic (slice x start &opt (end nil)))
 
 (import seq)
 (import struct)

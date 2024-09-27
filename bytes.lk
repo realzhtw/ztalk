@@ -32,13 +32,17 @@
   &mutable start
   &mutable end)
 
+(def (bslice-ref x i)
+  (bytevector-ref (bslice-bytevector x)
+                  (+ (bslice-start x) i)))
+
+;(def-method (ref (x bslice) i) (bslice-ref x i))
+
 (def-method (write-object (x bslice) s)
   (print-bytevector-slice s (bslice-bytevector x)
                             (bslice-start x)
                             (bslice-end x)))
 
-(def (bslice x start end) (make-bslice x start end))
-(def-method (slice (x 'bytevector)) (bslice x start end))
 
 (def (bslice-size x) (- (bslice-end x) (bslice-start x)))
 
@@ -50,5 +54,8 @@
     (copy-bytes r 0 b start end)
     r)))
 
+(def (slice-bytevector x start &opt (end nil))
+  (make-bslice x start (or end (bytevector-size x))))
+
 (def-method (slice (x bytevector) start end)
-  (bslice x start end))
+  (slice-bytevector x start end))
