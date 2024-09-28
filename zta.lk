@@ -784,7 +784,7 @@
 (def-method (write-object (x iomanip) s)
   (apply-iomanip x s))
 
-(def-generic (serialize x s) (write-object x s))
+(def-generic (serialize x p) (write-object x p))
 
 (def-generic (slice x start &opt (end nil)))
 
@@ -807,7 +807,7 @@
 (def (print-repl-prompt)
   (print repl-prompt flush))
 
-(def (repr x) (iomanip s (serialize x s)))
+(def (repr x) (iomanip p (serialize x p)))
 
 (def (repl)
   (with (prompt-and-read (fn ()

@@ -14,8 +14,8 @@
     (fn (x)
       (vector-ref hex-digits (mod x 16)))))
 
-(def (print-bytevector-slice s buf start end)
-  (with-output-to s
+(def (print-bytevector-slice p buf start end)
+  (with-output-to p
     (print "b\"")
       (for i (range start end)
         (let b (bytevector-ref buf i)
@@ -25,8 +25,11 @@
                                   (print "\\x" (hex-digit (>> b 4)) (hex-digit b)))))
     (print #\")))
 
-(def-method (write-object (x bytevector) s)
-  (print-bytevector-slice s x 0 (bytevector-size x)))
+(def-method (serialize (x bytevector) p)
+  (print-bytevector-slice p x 0 (bytevector-size x)))
+
+(def-method (write-object (x bytevector) p)
+  (write-bytes p x))
 
 (struct bslice
   bytevector
