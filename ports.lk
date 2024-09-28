@@ -16,10 +16,10 @@
 (def (write-bytes dst buf &opt (start 0) (end nil))
   (if (bslice? buf)
       (write-all dst (bslice-bytevector buf)
-                   (+ (bslice-start buf) start)
-                   (if end
-                       (min (bslice-end buf) (+ (bslice-start buf) end))
-                       (bslice-end buf)))
+                     (+ (bslice-start buf) start)
+                     (if end
+                         (min (bslice-end buf) (+ (bslice-start buf) end))
+                         (bslice-end buf)))
       (write-all dst buf start (or end (bytevector-size buf)))))
 
 ; input port
@@ -31,7 +31,7 @@
 
 (def-method (write-object (x input-port) s)
   (let backend (input-port-backend x)
-    (w/stdout s
+    (with-output-to s
       (if (fdport? backend)
           (print "<file-input-port name=\"" (fdport-name backend) "\" buf=" (input-port-buffer-size x) " bytes>")
           (print "<input-port>")))))
@@ -151,6 +151,17 @@
     (make-input-port p buf 0 0)))
 
 (import output-port)
+
+(def-method (write (dst bytevector) buf start end)
+  (append-bytes! dst buf start end)
+  (- end start))
+
+(def-method (close (x bytevector)))
+
+(def (open-output-bytevector)
+  (with (backend (make-adjustable-bytevector 0)
+         buf     (make-bytevector max-rune-length))
+    (make-output-port backend buf 0 0)))
 
 (def (open-output-file path)
   (withs (fd (unix-open path 'output #o777)

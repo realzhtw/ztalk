@@ -4,24 +4,25 @@
   (for-len i x
     (f (bytevector-ref x i))))
 
-(def (in-range? x a b) (and (<= a x) (< x b)))
+(def (in-range x a b) (and (<= a x) (< x b)))
 
-(def (ascii-printable? x) (in-range? x 32 128))
+(set ascii-7-14 [#\a #\b #\t #\n #\v #\f #\r])
 
 (def hex-digit
   (let hex-digits [#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9
                    #\a #\b #\c #\d #\e #\f]
     (fn (x)
-      (print (vector-ref hex-digits (mod x 16))))))
+      (vector-ref hex-digits (mod x 16)))))
 
 (def (print-bytevector-slice s buf start end)
-  (w/stdout s
+  (with-output-to s
     (print "b\"")
       (for i (range start end)
         (let b (bytevector-ref buf i)
-          (if (ascii-printable? b)
-              (print (char b))
-              (print "\\x" (hex-digit (div b 16)) (hex-digit b)))))
+          (if (= b 0)             (print #\\ #\0)
+              (in-range b  7  14) (print #\\ (vector-ref ascii-7-14 (- b 7)))
+              (in-range b 32 128) (print (char b))
+                                  (print "\\x" (hex-digit (>> b 4)) (hex-digit b)))))
     (print #\")))
 
 (def-method (write-object (x bytevector) s)
@@ -59,3 +60,16 @@
 
 (def-method (slice (x bytevector) start end)
   (slice-bytevector x start end))
+
+(def (append-bytes! x buf &opt (start 0) (end nil))
+  (if (bslice? buf)
+      (append-bytes x (bslice-bytevector buf)
+                      (+ (bslice-start buf) start)
+                      (if end
+                          (min (bslice-end buf) (+ (bslice-start buf) end))
+                          (bslice-end buf)))
+      (withs (pos (bytevector-size x)
+              end (or end (bytevector-size buf))
+              n   (- end start))
+        (bytevector-resize x (+ pos n))
+        (copy-bytes x pos buf start end))))

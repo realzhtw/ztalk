@@ -117,7 +117,7 @@
 (def-param seq-print-limit 3)
 
 (def-method (write-object (x seq) s)
-  (w/stdout s
+  (with-output-to s
     (print #\()
     (print-all (seq-first-n x (seq-print-limit)))
     (print " ...)")))

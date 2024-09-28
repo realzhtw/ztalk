@@ -74,7 +74,8 @@
 
 (def-method (write-object (x output-port) s)
   (let backend (output-port-backend x)
-    (w/stdout s
-      (if (fdport? backend)
-          (print "<file-output-port name=\"" (fdport-name backend) "\" buf=" (output-port-buffer-size x) " bytes>")
-          (print "<output-port>")))))
+    (with-output-to s
+      (if (fdport? backend)     (print "<file-output-port name=\"" (fdport-name backend)
+                                       "\" buf=" (output-port-buffer-size x) " bytes>")
+          (bytevector? backend) (print "<bytevector-output-port>")
+                                (print "<output-port>")))))
