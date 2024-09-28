@@ -444,12 +444,12 @@
 
 (def-param current-source-file nil)
 
-(def-param stdin process-stdin)
+(def-param current-input-port process-stdin)
 (def-param current-output-port process-stdout)
 (def-param current-error-port process-stderr)
 
-(macro (w/stdin s &rest body)
-  `(w/param stdin ,s ,@body))
+(macro (with-input-from p &rest body)
+  `(w/param stdin ,p ,@body))
 
 (macro (with-output-to p &rest body)
   `(w/param current-output-port ,p ,@body))
@@ -504,9 +504,14 @@
       (is c #\newline)
       (is c #\return)))
 
-(macro (with-input-from-wstring var str &rest body)
-  `(let ,var (open-input-wstring ,str)
-     ,@body))
+(def (call-with-input-wstring s f)
+  (let p (open-input-wstring s)
+    (f p)))
+
+(macro (with-input-from-wstring s &rest body)
+  (w/uniq (p)
+    `(call-with-input-wstring
+       (fn (,p) (with-input-from ,p ,@body)))))
 
 (def (call-with-output-wstring f)
   (let p (open-output-wstring)
@@ -625,7 +630,7 @@
 
   (def (read-atom &opt (s nil))
     (if-let str (read-atom-as-wstring s)
-      (let x (with-input-from-wstring ss str (cl-sread ss))
+      (let x (call-with-input-wstring str (fn (p) (cl-sread p)))
         (let c (peek-char s)
           (if (in c #\_)
               (do (read-char s)
@@ -643,7 +648,7 @@
                            (print #\# c nc (unless (atom-delimiter? nc)
                                                    (read-until atom-delimiter? s))))
                          (print #\# c (read-until atom-delimiter? s))))
-          (with-input-from-wstring ss str (cl-sread ss)))
+          (call-with-input-wstring str (fn (p) (cl-sread p))))
         nil)))
 
   (def (sread &opt (s nil) (error-on-eof nil))
@@ -781,17 +786,15 @@
 
 (def-generic (serialize x s) (write-object x s))
 
-;(def-method (serialize (x 'int) s) (
-
 (def-generic (slice x start &opt (end nil)))
 
 (import seq)
 (import struct)
 (import bytes)
-(import ports)
-(import math)
 (import runes)
 (import strings)
+(import ports)
+(import math)
 (import ranges)
 (import algorithms)
 (import sys)

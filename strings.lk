@@ -12,9 +12,9 @@
 (def (string-push-back s c)
   (let b (rep s)
     (withs (m (bytevector-size b)
-            n (utf8-rune-length c))
+            n (rune-length c))
       (bytevector-resize b (+ m n))
-      (utf8-encode-rune c b m)
+      (encode-rune c b m)
       s)))
 
 (def-method (push-back (x string) value)
@@ -39,9 +39,9 @@
          i 0
          n (string-size x))
     (while (< i n)
-      (let r (utf8-decode-rune b i)
+      (let r (decode-rune b i)
         (f r)
-        (set i (+ i (utf8-rune-length r)))))))
+        (set i (+ i (rune-length r)))))))
 
 (def (write-string x s)
   (if (is-a s 'output-port)
