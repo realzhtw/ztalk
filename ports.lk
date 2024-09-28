@@ -22,117 +22,9 @@
                          (bslice-end buf)))
       (write-all dst buf start (or end (bytevector-size buf)))))
 
-; input port
-(struct input-port
-           backend
-           buffer
-  &mutable buf-rdpos
-  &mutable buf-wrpos)
 
-(def-method (write-object (x input-port) s)
-  (let backend (input-port-backend x)
-    (with-output-to s
-      (if (fdport? backend)
-          (print "<file-input-port name=\"" (fdport-name backend) "\" buf=" (input-port-buffer-size x) " bytes>")
-          (print "<input-port>")))))
-
-(def (input-port-buffer-size p) (bytevector-size (input-port-buffer p)))
-
-(def (input-port-buffer-advance-rdpos p n)
-  (input-port-set-buf-rdpos p (+ (input-port-buf-rdpos p) n)))
-
-(def (input-port-buffer-advance-wrpos s n)
-  (input-port-set-buf-wrpos p (+ (input-port-buf-wrpos p) n)))
-
-(def (input-port-buffer-bytes-left p)
-  (- (input-port-buf-wrpos p) (input-port-buf-rdpos p)))
-
-(def (input-port-buffer-empty? p)
-  (= (input-port-buffer-bytes-left p) 0))
-
-(def (input-port-buffer-space-left p)
-  (- (input-port-buffer-size p) (input-port-buf-wrpos p)))
-
-(def (input-port-buffer-full? p)
-  (= (input-port-buffer-space-left p) 0))
-
-(def (input-port-reset-buffer p)
-  (withs (start (input-port-buf-rdpos p)
-          end   (input-port-buf-wrpos p)
-          n     (- end start))
-    (when (> n 0)
-      (copy-bytes (input-port-buffer p) 0
-                  (input-port-buffer p) start end))
-    (input-port-set-buf-rdpos p 0)
-    (input-port-set-buf-wrpos p n)))
-
-(def (input-port-fill-buffer p)
-  (when (< (input-port-buffer-bytes-left p) max-rune-length)
-    (input-port-reset-buffer p))
-  (let n (read (input-port-backend p)
-               (input-port-buffer p)
-               (input-port-buf-wrpos p)
-               (input-port-buffer-size p))
-    (input-port-buffer-advance-wrpos p n)
-    n))
-
-(def (input-port-ensure-buffer p n)
-  (or (>= (input-port-buffer-bytes-left p) n)
-      (and (> (input-port-fill-buffer p) 0)
-           (input-port-ensure-buffer p n))))
-
-(def (input-port-read p buf start end)
-  (input-port-ensure-buffer p 1)
-  (if (input-port-buffer-empty? p)
-      0
-      (let n (min (- end start) (input-port-buffer-bytes-left p))
-        (copy-bytes buf start (input-port-buffer p)
-                              (input-port-buf-rdpos p)
-                              n)
-        (input-port-buffer-advance-rdpos p n)
-        n)))
-
-(def (close-input-port p)
-  (close (input-port-backend p)))
-
-(def-method (close (x input-port)) (close-input-port x))
-
-(def (peek-byte p)
-  (if (input-port-ensure-buffer p 1)
-    (bytevector-ref (input-port-buffer p) (input-port-buf-rdpos p))
-    nil))
-
-(def (read-byte p)
-  (let b (peek-byte p)
-    (if b
-        (input-port-buffer-advance-rdpos p 1))
-    b))
-
-(def (peek-rune p)
-  (if-let b (peek-byte p)
-    (let n (decode-rune-length b)
-      (if (or (null? n)
-              (not (input-port-ensure-buffer p n)))
-          (raise 'invalid-rune))
-      (decode-rune (input-port-buffer p)
-                   (input-port-buf-rdpos p)))
-    nil))
-
-(def (read-rune p)
-  (let c (peek-rune p)
-    (if c
-        (input-port-buffer-advance-rdpos p (rune-length c)))
-    c))
-
-(def (input-port-read-line p)
-  (if (peek-rune p)
-    (accumulate-to-string acc
-      (whiler r (read-rune p) (not (in r nil #\newline))
-        (acc r)))
-    nil))
-
-(def-method (read (x input-port) buf start end)
-  (input-port-read x buf start end))
+(import input-port)
+(import output-port)
 
 (def (fdopen fd dir)
   (let buf-size (file-info-block-size (fdport-stat fd))
@@ -147,10 +39,8 @@
           p   (if (< fd 0)
                   (raise 'open-failed)
                   (make-fdport fd path))
-          buf (make-bytevector (file-info-block-size (fdport-stat p))))
+          buf (make-bytevector (+ (file-info-block-size (fdport-stat p)) max-rune-length)))
     (make-input-port p buf 0 0)))
-
-(import output-port)
 
 (def-method (write (dst bytevector) buf start end)
   (append-bytes! dst buf start end)

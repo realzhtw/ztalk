@@ -1,0 +1,107 @@
+(struct input-port
+           backend
+           buffer
+  &mutable buf-rdpos
+  &mutable buf-endpos)
+
+(def-method (serialize (x input-port) p)
+  (let backend (input-port-backend x)
+    (with-output-to p
+      (if (fdport? backend)
+          (print "<file-input-port name=\"" (fdport-name backend) "\" buf="
+                 (repr (slice (input-port-buffer x)
+                              (input-port-buf-rdpos x)
+                              (+ (input-port-buf-rdpos x) 16))) #\>)
+          (print "<input-port>")))))
+
+(def (input-port-buffer-size p) (bytevector-size (input-port-buffer p)))
+
+(def (input-port-buffer-bytes-left p)
+  (- (input-port-buf-endpos p) (input-port-buf-rdpos p)))
+
+(def (input-port-buffer-empty? p)
+  (= (input-port-buffer-bytes-left p) 0))
+
+(def (input-port-buffer-space-left p)
+  (- (input-port-buffer-size p) (input-port-buf-endpos p)))
+
+(def (input-port-buffer-full? p)
+  (= (input-port-buffer-space-left p) 0))
+
+(def (input-port-reset-buffer p)
+  (withs (start (input-port-buf-rdpos p)
+          end   (input-port-buf-endpos p)
+          n     (- end start)
+          pos   (max 0 (- max-rune-length n)))
+    (when (> n 0)
+      (copy-bytes (input-port-buffer p) pos
+                  (input-port-buffer p) start end))
+    (input-port-set-buf-rdpos p pos)
+    (input-port-set-buf-endpos p (+ pos n))))
+
+(def (input-port-fill-buffer p)
+  (when (< (input-port-buffer-bytes-left p) max-rune-length)
+    (input-port-reset-buffer p))
+  (let n (read (input-port-backend p)
+               (input-port-buffer p)
+               (input-port-buf-endpos p)
+               (input-port-buffer-size p))
+    (inc (input-port-buf-endpos p) n)
+    n))
+
+(def (input-port-ensure-buffer p n)
+  (or (<= n (input-port-buffer-bytes-left p))
+      (and (> (input-port-fill-buffer p) 0)
+           (input-port-ensure-buffer p n))))
+
+(def (input-port-read p buf start end)
+  (if (input-port-ensure-buffer p 1)
+      (let n (min (- end start) (input-port-buffer-bytes-left p))
+        (copy-bytes buf start (input-port-buffer p)
+                              (input-port-buf-rdpos p)
+                              n)
+        (inc (input-port-buf-rdpos p) n)
+        n)
+      0))
+
+(def-method (read (x input-port) buf start end)
+  (input-port-read x buf start end))
+
+(def (peek-byte p)
+  (if (input-port-ensure-buffer p 1)
+    (bytevector-ref (input-port-buffer p) (input-port-buf-rdpos p))
+    nil))
+
+(def (read-byte p)
+  (let b (peek-byte p)
+    (if b
+        (inc (input-port-buf-rdpos p)))
+    b))
+
+(def (input-port-get-rune p consume)
+  (if-let b (peek-byte p)
+    (let n (decode-rune-length b)
+      (if (or (null? n)
+              (not (input-port-ensure-buffer p n)))
+          (raise 'invalid-rune))
+      (let r (decode-rune (input-port-buffer p)
+                          (input-port-buf-rdpos p))
+        (if consume
+          (inc (input-port-buf-rdpos p) n))
+        r))
+    nil))
+
+(def (peek-rune p) (input-port-get-rune p false))
+(def (read-rune p) (input-port-get-rune p true))
+
+(def (input-port-read-line p)
+  (if (peek-rune p)
+    (accumulate-to-string acc
+      (whiler r (read-rune p) (not (in r nil #\newline))
+        (acc r)))
+    nil))
+
+(def (close-input-port p)
+  (close (input-port-backend p)))
+
+(def-method (close (x input-port)) (close-input-port x))

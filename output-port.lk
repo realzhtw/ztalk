@@ -72,10 +72,10 @@
 (def-method (close (x output-port))
   (close-output-port x))
 
-(def-method (write-object (x output-port) s)
+(def-method (serialize (x output-port) p)
   (let backend (output-port-backend x)
-    (with-output-to s
-      (if (fdport? backend)     (print "<file-output-port name=\"" (fdport-name backend)
-                                       "\" buf=" (output-port-buffer-size x) " bytes>")
+    (with-output-to p
+      (if (fdport? backend)     (print "<file-output-port name=\"" (fdport-name backend) "\" buf="
+                                       (repr (slice (output-port-buffer x) 0 16)) #\>)
           (bytevector? backend) (print "<bytevector-output-port>")
                                 (print "<output-port>")))))
