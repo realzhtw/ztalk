@@ -445,22 +445,22 @@
 (def-param current-source-file nil)
 
 (def-param stdin process-stdin)
-(def-param stdout process-stdout)
-(def-param stderr process-stderr)
+(def-param current-output-port process-stdout)
+(def-param current-error-port process-stderr)
 
 (macro (w/stdin s &rest body)
   `(w/param stdin ,s ,@body))
 
-(macro (w/stdout s &rest body)
-  `(w/param stdout ,s ,@body))
+(macro (with-output-to p &rest body)
+  `(w/param current-output-port ,p ,@body))
 
-(macro (w/stderr s &rest body)
-  `(w/param stdout ,s ,@body))
+(macro (with-errors-to p &rest body)
+  `(w/param current-error-port ,p ,@body))
 
-(def (write-char c x)
-  (if (is-a x 'output-port)
-      (write-rune c x)
-      (cl-write-char c x)))
+(def (write-char c p)
+  (if (is-a p 'output-port)
+      (write-rune c p)
+      (cl-write-char c p)))
 
 (def (flush-output x)
   (if (is-a x 'output-port)
@@ -468,7 +468,7 @@
       (cl-flush-output x)))
 
 (def (default-exception-handler e)
-  (w/stdout (stderr)
+  (with-output-to (current-error-port)
     (println "Unhandled exception: " e)
     (exit 1)))
 
@@ -508,10 +508,15 @@
   `(let ,var (open-input-wstring ,str)
      ,@body))
 
-(macro (with-output-to-wstring var &rest body)
-  `(let ,var (open-output-wstring)
-     ,@body
-     (get-output-wstring ,var)))
+(def (call-with-output-wstring f)
+  (let p (open-output-wstring)
+    (f p)
+    (get-output-wstring p)))
+
+(macro (with-output-to-wstring &rest body)
+  (w/uniq (p)
+    `(call-with-output-wstring
+       (fn (,p) (with-output-to ,p ,@body)))))
 
 (def-generic (close x))
 (def-method (close (x cl-stream)) (cl-close x))
@@ -542,9 +547,9 @@
 (def-iomanip (flush s) (flush-output s))
 
 (def (print &rest args)
-  (let s (stdout)
+  (let p (current-output-port)
     (for x args
-      (write-object x s))))
+      (write-object x p))))
 
 (def (println &rest args)
   (apply print args)
@@ -632,13 +637,12 @@
   (def (read-hash-value &opt (s nil))
     (let next-char (fn () (or (read-char s) (raise 'read-hash-value)))
       (if (is (and (skip-space-and-comments s) (read-char s)) #\#)
-        (let str (with-output-to-wstring ss
-                   (w/stdout ss
-                     (case-let c (next-char)
-                       #\\ (let nc (next-char)
-                             (print #\# c nc (unless (atom-delimiter? nc)
-                                                     (read-until atom-delimiter? s))))
-                           (print #\# c (read-until atom-delimiter? s)))))
+        (let str (with-output-to-wstring
+                   (case-let c (next-char)
+                     #\\ (let nc (next-char)
+                           (print #\# c nc (unless (atom-delimiter? nc)
+                                                   (read-until atom-delimiter? s))))
+                         (print #\# c (read-until atom-delimiter? s))))
           (with-input-from-wstring ss str (cl-sread ss)))
         nil)))
 
@@ -728,18 +732,18 @@
 (def (write-wstring x s)
   (wstring-for-each x (fn (c) (write-char c s))))
 
-(def-generic (write-object x s)
-  (if (is-a s 'input-port)
-      (write-wstring "<unknown object>" s)
-      (cl-write x s))
+(def-generic (write-object x p)
+  (if (is-a p 'input-port)
+      (write-wstring "<unknown object>" p)
+      (cl-write x p))
   none)
 
-(def-method (write-object (x none) s))
+(def-method (write-object (x none) p))
 
-(def-method (write-object (x wstring) s) (write-wstring x s))
+(def-method (write-object (x wstring) p) (write-wstring x p))
 
-(def-method (write-object (x vector) s)
-  (w/stdout s
+(def-method (write-object (x vector) p)
+  (with-output-to s
     (print #\[)
     (print-all x)
     (print #\])))
@@ -759,17 +763,17 @@
 (def-method (write-object (x symbol) s) (write-wstring (symbol-name x) s))
 
 (def-method (write-object (x pair) s)
-  (w/stdout s
+  (with-output-to s
     (print #\()
     (print-all x)
     (print #\))))
 
 (def-method (write-object (x macro) s)
-  (w/stdout s
+  (with-output-to s
     (print "<macro " (fn-params (rep x)) #\>)))
 
 (def-method (write-object (x fn) s)
-  (w/stdout s
+  (with-output-to s
     (print "<fn " (fn-params x) #\>)))
 
 (def-method (write-object (x iomanip) s)

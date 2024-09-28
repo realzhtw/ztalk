@@ -1,8 +1,11 @@
 (struct output-port
            backend
-           buffer
+           buffer      ; at least max-rune-length extra bytes even if unbuffered
   &mutable buf-wrpos
-           buf-endpos) ; there is extra space after buf-endpos for a full rune
+           buf-endpos) ; 0 when unbuffered
+
+(def (output-port-buffered? p)
+  (> (output-port-buf-endpos p) 0))
 
 (def (output-port-buffer-size p)
   (output-port-buf-endpos p))
@@ -29,29 +32,37 @@
       (dec (output-port-buf-wrpos p) n)
       n)))
 
-(def (output-port-write p buf start end)
-  (let n (min (- end start) (output-port-buffer-space-left p))
-    (copy-bytes (output-port-buffer p)
-                (output-port-buf-wrpos p)
-                buf start (+ start n))
-    (inc (output-port-buf-wrpos p) n)
-    (if (output-port-buffer-full? p)
+(def (output-port-advance-wrpos p n)
+  (inc (output-port-buf-wrpos p) n)
+  (if (output-port-buffer-full? p)
       (flush-output-port p))
-    n))
+  n)
+
+(def (output-port-write p buf start end)
+  (if (output-port-buffered? p)
+    (let n (min (- end start) (output-port-buffer-space-left p))
+      (copy-bytes (output-port-buffer p)
+                  (output-port-buf-wrpos p)
+                  buf start (+ start n))
+      (output-port-advance-wrpos p n))
+    (write (output-port-backend p) buf start end)))
 
 (def-method (write (x output-port) buf start end)
   (output-port-write x buf start end))
 
-(def (write-byte p b)
-  (bytevector-set (output-port-buffer p) (output-port-buf-wrpos p) b)
-  (inc (output-port-buf-wrpos p)))
+(def (write-byte b p)
+  (let buf (output-port-buffer p)
+    (bytevector-set buf (output-port-buf-wrpos p) b)
+    (if (output-port-buffered? p)
+        (output-port-advance-wrpos p 1)
+        (write (output-port-backend p) buf 0 1))))
 
-(def (write-rune p r)
-  (let n (utf8-encode-rune r (output-port-buffer p) (output-port-buf-wrpos p))
-    (inc (output-port-buf-wrpos p) n)
-    (if (output-port-buffer-full? p)
-      (flush-output-port p))
-    n))
+(def (write-rune r p)
+  (let buf (output-port-buffer p)
+    (let n (encode-rune r buf (output-port-buf-wrpos p))
+      (if (output-port-buffered? p)
+          (output-port-advance-wrpos p n)
+          (write (output-port-backend p) buf 0 n)))))
 
 (def (close-output-port p)
   (if (not (output-port-buffer-empty? p))

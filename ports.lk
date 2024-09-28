@@ -134,8 +134,6 @@
 (def-method (read (x input-port) buf start end)
   (input-port-read x buf start end))
 
-(import output-port)
-
 (def (fdopen fd dir)
   (let buf-size (file-info-block-size (fdport-stat fd))
     (case dir
@@ -143,6 +141,16 @@
       'out (make-output-port fd unix-write unix-close
                              (make-bytevector buf-size) 0 true)
            (raise 'fdopen-invalid-direction))))
+
+(def (open-input-file2 path)
+  (withs (fd  (unix-open path 'input 0)
+          p   (if (< fd 0)
+                  (raise 'open-failed)
+                  (make-fdport fd path))
+          buf (make-bytevector (file-info-block-size (fdport-stat p))))
+    (make-input-port p buf 0 0)))
+
+(import output-port)
 
 (def (open-output-file path)
   (withs (fd (unix-open path 'output #o777)
@@ -153,13 +161,14 @@
           buf (make-bytevector (+ n max-rune-length)))
     (make-output-port p buf 0 n)))
 
-(def (open-input-file2 path)
-  (withs (fd  (unix-open path 'input 0)
-          p   (if (< fd 0)
-                  (raise 'open-failed)
-                  (make-fdport fd path))
-          buf (make-bytevector (file-info-block-size (fdport-stat p))))
-    (make-input-port p buf 0 0)))
+(def (call-with-output-file path f)
+  (let p (open-output-file path)
+    (after (f p) (close-output-port p))))
+
+(macro (with-output-to-file path &rest body)
+  (w/uniq (p)
+    `(call-with-output-file ,path
+       (fn (,p) (with-output-to ,p ,@body)))))
 
 (when (test-on-import)
   true
