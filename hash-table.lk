@@ -1,10 +1,11 @@
-(struct hash-table
-  &mutable size
-  &mutable data)
-
-(let mht make-hash-table
-  (def (make-hash-table)
-    (mht 0 (make-vector 0))))
+(def (make-hash-table) (annotate 'hash-table (cons 0 (make-vector 0))))
+(def (hash-table? x) (is-a x 'hash-table))
+(def (hash-table-size ht) (car (rep ht)))
+(def (hash-table-data ht) (cdr (rep ht)))
+(def (hash-table-set-size ht n) (set (car (rep ht)) n))
+(def (hash-table-set-data ht d) (set (cdr (rep ht)) d))
+(add-place-setter 'hash-table-size 'hash-table-set-size)
+(add-place-setter 'hash-table-data 'hash-table-set-data)
 
 (def (hash-table-empty? ht)
   (= (hash-table-size ht) 0))
@@ -12,14 +13,14 @@
 (def (hash-table-threshold-capacity ht)
   (* (vector-size (hash-table-data ht)) 4/3))
 
-(def (hash-table-ref ht key)
+(def (hash-table-ref ht key &opt (defval nil))
   (if (hash-table-empty? ht)
-      nil
+      defval
       (withs (tbl (hash-table-data ht)
               i   (mod (hash key) (vector-size tbl)))
         (if-let e (assoc (vector-ref tbl i) key)
           (cdr e)
-          nil))))
+          defval))))
 
 (def (hash-table-for-each ht f)
   (vector-for-each (hash-table-data ht)
@@ -46,6 +47,13 @@
       (set (cdr e) value)
       (do (push (cons key value) (vector-ref tbl i))
           (inc (hash-table-size ht))))))
+
+;(def (hash-table-bucket-stats ht)
+;  (let m (make-hash-table)
+;    (for x (hash-table-data ht)
+;      (let n (list-length x)
+;        (hash-table-set m n (+ (hash-table-ref m n 0) 1))))
+;    m))
 
 (macro (accumulate-to-hash-table acc-fn &rest body)
   (w/uniq (ght)
@@ -76,15 +84,19 @@
 
 (def-method (for-each (x hash-table) f) (hash-table-for-each x f))
 
-; Switching to hash-table in setters storage for quicker access.
-(let place-setters (alist->hash-table (get-place-setters))
-  (def (place-setter getter-name)
-    (hash-table-ref place-setters getter-name))
+; Switching to hash-table in setters storage.
+(unless (hash-table? place-setters)
+  (set place-setters (alist->hash-table place-setters)))
 
-  (def (add-place-setter getter-name setter-name)
-    (hash-table-set place-setters getter-name setter-name))
+(def (place-setter getter-name)
+  (hash-table-ref place-setters getter-name))
 
-  (def (get-place-setters) place-setters))
-
+(def (add-place-setter getter-name setter-name)
+  (hash-table-set place-setters getter-name setter-name))
 
 (add-place-setter 'hash-table-ref 'hash-table-set)
+
+; Switching to hash-table in modules registry
+(set loaded-modules (alist->hash-table loaded-modules))
+(def (loaded? path) (hash-table-ref loaded-modules path))
+(def (register-module path) (hash-table-set loaded-modules path true))

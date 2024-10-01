@@ -157,15 +157,14 @@
     (f (caar x) (cdar x))
     (alist-for-each (cdr x) f)))
 
-(let place-setters nil
-  ; Using alist for now, will be replaced with hash-table once it's loaded
-  (def (place-setter getter-name)
-    (alist-ref place-setters getter-name))
+; Using alist for now, will be replaced with hash-table once it's loaded
+(def place-setters)
 
-  (def (add-place-setter getter-name setter-name)
-    (assign place-setters (cons (cons getter-name setter-name) place-setters)))
+(def (place-setter getter-name)
+  (alist-ref place-setters getter-name))
 
-  (def (get-place-setters) place-setters))
+(def (add-place-setter getter-name setter-name)
+  (assign place-setters (cons (cons getter-name setter-name) place-setters)))
 
 (add-place-setter 'car 'set-car)
 (add-place-setter 'car 'set-car)
@@ -723,20 +722,25 @@
 
 (push-back import-paths (path-dirname (ref cl-argv 0)))
 
-(def import-module
-  (let loaded (make-dict 'equal)
-    (set loaded-modules loaded)
-    (fn (name &opt (force false))
-      (let filename (append name ".lk")
-        (point done
-          (for path import-paths
-            (let filepath (wstring-append path #\/ filename)
-              (when (file-exists filepath)
-                (when (or (not (dict-ref loaded filepath)) force)
-                  (load filepath)
-                  (dict-set loaded filepath true))
-                (done))))
-            (raise 'import-error))))))
+(def loaded-modules)
+
+(def (register-module path)
+  (push (cons path true) loaded-modules))
+
+(def (loaded? path)
+  (alist-ref loaded-modules path))
+
+(def (import-module name &opt (force false))
+  (let filename (append name ".lk")
+    (point done
+      (for path import-paths
+        (let filepath (wstring-append path #\/ filename)
+          (when (file-exists filepath)
+            (when (or (not (loaded? filepath)) force)
+              (load filepath)
+              (register-module filepath))
+            (done))))
+        (raise 'import-error))))
 
 (macro (import module)
   `(import-module (symbol-name (quote ,module))))
@@ -820,9 +824,9 @@
 
 (def-generic (slice x start &opt (end nil)))
 
+(import hash-table)
 (import seq)
 (import struct)
-(import hash-table)
 (import bytes)
 (import runes)
 (import strings)

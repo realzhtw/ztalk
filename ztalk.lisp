@@ -2,6 +2,8 @@
   (:use :cl)
   (:shadow compile))
 
+;(declaim (optimize (speed 3) (safety 0)))
+
 (defun die (msg)
   (format t msg)
   (sb-ext:quit :unix-status  1))
