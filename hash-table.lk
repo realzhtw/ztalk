@@ -1,0 +1,41 @@
+(struct hash-table
+  &mutable size
+  &mutable data)
+
+(def (hash-table-empty? ht)
+  (= (hash-table-size ht) 0))
+
+(def (hash-table-threshold-capacity ht)
+  (* (vector-size (hash-table-data ht)) 4/3))
+
+(def (hash-table-ref ht key)
+  (if (hash-table-empty? ht)
+      nil
+      (withs (tbl (hash-table-data ht)
+              i   (mod (hash key) (vector-size tbl)))
+        (if-let e (assoc (vector-ref tbl i) key)
+          (cdr e)
+          nil))))
+
+(def (hash-table-grow ht)
+  (withs (n       (max (* (hash-table-size ht) 2) 1)
+          new-tbl (make-vector n))
+    (vector-for-each (hash-table-data ht)
+      (fn (bucket)
+        (list-for-each bucket
+          (fn (e)
+            (with (key   (car e)
+                   value (cdr e))
+              (let i (mod (hash key) n)
+                (push (cons key value) (vector-ref new-tbl i))))))))
+    (set (hash-table-data ht) new-tbl)))
+
+(def (hash-table-set ht key value)
+  (if (> (+ (hash-table-size ht) 1) (hash-table-threshold-capacity ht))
+    (hash-table-grow ht))
+  (withs (tbl (hash-table-data ht)
+          i   (mod (hash key) (vector-size tbl)))
+    (if-let e (assoc (vector-ref tbl i) key)
+      (set (cdr e) value)
+      (do (push (cons key value) (vector-ref tbl i))
+          (inc (hash-table-size ht))))))

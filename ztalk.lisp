@@ -317,6 +317,8 @@
 (zdef apply (lambda (k f args)
   (apply f (cons k args))))
 
+(zdef cons (lambda (k a b) (funcall k (cons a b))))
+
 (zexport annotate (tag x))
 (zdef type (lambda (k x) (declare (inline ztalk-type)) (funcall k (ztalk-type x))))
 (zexport rep (x))
@@ -416,6 +418,7 @@
 (zdefun dict-ref (d k &optional v) (gethash k d v))
 (zdefun dict-set (d k v) (setf (gethash k d) v))
 (zdefun dict-size (d) (hash-table-count d))
+(zdefun hash (x) (sxhash x))
 
 (zdef dict-for-each
   (lambda (k d f)
@@ -424,7 +427,6 @@
 
 (zdefun div (a b) (floor a b))
 (zexport mod (a b))
-(zexport cons (a b))
 (zexport car (p))
 (zexport cdr (p))
 (zdefun set-car (p x) (setf (car p) x))

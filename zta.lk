@@ -43,6 +43,11 @@
 (macro (afn params &rest body)
   `(rfn (self ,@params) ,@body))
 
+(def (assoc x key)
+  (if (null? x)         nil
+      (is (caar x) key) (car x)
+                        (assoc (cdr x) key)))
+
 (def (list-length xs)
   ((afn (n xs)
      (if (null? xs)
@@ -136,6 +141,7 @@
 
 (dict-set setters 'car 'set-car)
 (dict-set setters 'cdr 'set-cdr)
+(dict-set setters 'vector-ref 'vector-set)
 
 (macro (set place value)
   (if (symbol? place)
@@ -718,8 +724,8 @@
 
 (def (make-padding mortar)
   (make-iomanip (let first true
-                  (fn (s)
-                    (if first (reset first) (write-object mortar s))))))
+                  (fn (p)
+                    (if first (reset first) (write-object mortar p))))))
 
 (macro (w/padding name mortar &rest body)
   `(let ,name (make-padding ,mortar)
@@ -748,7 +754,7 @@
 (def-method (write-object (x wstring) p) (write-wstring x p))
 
 (def-method (write-object (x vector) p)
-  (with-output-to s
+  (with-output-to p
     (print #\[)
     (print-all x)
     (print #\])))
@@ -767,10 +773,17 @@
 
 (def-method (write-object (x symbol) s) (write-wstring (symbol-name x) s))
 
+(def (print-cdr x)
+  (unless (null? x)
+    (if (pair? x)
+       (do (print #\space (car x))
+           (print-cdr (cdr x)))
+       (print " . " x))))
+
 (def-method (write-object (x pair) s)
   (with-output-to s
-    (print #\()
-    (print-all x)
+    (print #\( (car x))
+    (print-cdr (cdr x))
     (print #\))))
 
 (def-method (write-object (x macro) s)
