@@ -13,7 +13,7 @@
 (def (hash-table-threshold-capacity ht)
   (* (vector-size (hash-table-data ht)) 4/3))
 
-(def (hash-table-ref ht key &opt (defval nil))
+(def (hash-table-ref ht key &opt defval)
   (if (hash-table-empty? ht)
       defval
       (withs (tbl (hash-table-data ht)

@@ -30,7 +30,7 @@
 
 (def (null? x) (is x nil))
 (def (not x) (is x nil))
-(def (no x) (is x none))
+(def (none? x) (is x none))
 
 (macro (rfn sig &rest body)
   ((fn (name params)
@@ -197,12 +197,13 @@
         `(let ,g ,(car args)
            (if ,g ,g (or ,@(cdr args)))))))
 
-(def (make-param &opt (x nil))
-  (let value x
-    (fn (&opt new-value)
-      (if (no new-value)
-          value
-          (set value new-value)))))
+(let sentinel (gensym)
+  (def (make-param &opt x)
+    (let value x
+      (fn (&opt (new-value sentinel))
+        (if (is new-value sentinel)
+            value
+            (set value new-value))))))
 
 (macro (def-param name value)
   `(def ,name (make-param ,value)))
@@ -211,7 +212,7 @@
   (w/uniq (k)
     `(call/cc
        (fn (,k)
-         (let ,name (fn (&opt x) (,k x))
+         (let ,name (fn (&opt (x none)) (,k x))
            ,@body)))))
 
 (def-param current-exception-handler (fn (e) (exit 1)))
@@ -588,7 +589,7 @@
   (apply println (cons msg rest))
   (raise 'read-error))
 
-(def (skip-line &opt (s nil))
+(def (skip-line &opt s)
   (if-let c (peek-char s)
     (do (read-char s)
         (if (is c #\newline)
@@ -596,7 +597,7 @@
           (skip-line s)))
     nil))
 
-(def (skip-space-and-comments &opt (s nil))
+(def (skip-space-and-comments &opt s)
   (if-let c (skip-space s)
     (if (is c #\;)
         (if (skip-line s)
@@ -605,7 +606,7 @@
         c)
     nil))
 
-(def (skip-space-and-comments-and-read-char &opt (s nil))
+(def (skip-space-and-comments-and-read-char &opt s)
   (and (skip-space-and-comments s)
        (read-char s)))
 
@@ -630,7 +631,7 @@
                               (acc c)))))
       nil)))
 
-(def (read-atom-as-wstring &opt (s nil))
+(def (read-atom-as-wstring &opt s)
   (if (skip-space-and-comments s)
     (accumulate-to-wstring acc
       (whiler c (peek-char s) (and c (not (atom-delimiter? c)))
@@ -642,7 +643,7 @@
       x
       (fn (y) (is x y))))
 
-(def (read-until test &opt (s nil))
+(def (read-until test &opt s)
   (let f (testify test)
     (accumulate-to-wstring acc
       (whiler c (peek-char s) (and c (not (f c)))
@@ -652,7 +653,7 @@
 
   (def (eof? x) (is x eof))
 
-  (def (read-atom &opt (s nil))
+  (def (read-atom &opt s)
     (if-let str (read-atom-as-wstring s)
       (let x (call-with-input-wstring str (fn (p) (cl-sread p)))
         (let c (peek-char s)
@@ -663,7 +664,7 @@
               x)))
       eof))
 
-  (def (read-hash-value &opt (s nil))
+  (def (read-hash-value &opt s)
     (let next-char (fn () (or (read-char s) (raise 'read-hash-value)))
       (if (is (and (skip-space-and-comments s) (read-char s)) #\#)
         (let str (with-output-to-wstring
@@ -675,7 +676,7 @@
           (call-with-input-wstring str (fn (p) (cl-sread p))))
         nil)))
 
-  (def (sread &opt (s nil) (error-on-eof nil))
+  (def (sread &opt s error-on-eof)
     (case-let c (skip-space-and-comments s)
       nil (if error-on-eof (error "Unexpected EOF.") eof)
       #\" (read-wstring s)
@@ -730,7 +731,7 @@
 (def (loaded? path)
   (alist-ref loaded-modules path))
 
-(def (import-module name &opt (force false))
+(def (import-module name &opt force)
   (let filename (append name ".lk")
     (point done
       (for path import-paths
@@ -771,6 +772,8 @@
       (write-wstring "<unknown object>" p)
       (cl-write x p))
   none)
+
+(def-method (write-object (x null) p) (write-wstring "nil" p))
 
 (def-method (write-object (x none) p))
 
@@ -822,7 +825,7 @@
 
 (def-generic (serialize x p) (write-object x p))
 
-(def-generic (slice x start &opt (end nil)))
+(def-generic (slice x start &opt end))
 
 (import hash-table)
 (import seq)
@@ -854,7 +857,7 @@
                            (println "Unhandled exception: " e)))
     (whiler e (prompt-and-read) (not (eof? e))
       (let x (guard on-error (eval e))
-        (unless (no x)
+        (unless (none? x)
           (println (repr x)))))))
 
 (repl)

@@ -13,7 +13,7 @@
             (raise 'write-all)
             (inc pos n))))))
 
-(def (write-bytes dst buf &opt (start 0) (end nil))
+(def (write-bytes dst buf &opt (start 0) end)
   (if (bslice? buf)
       (write-all dst (bslice-bytevector buf)
                      (+ (bslice-start buf) start)

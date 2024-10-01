@@ -58,13 +58,13 @@
     (copy-bytes r 0 b start end)
     r)))
 
-(def (slice-bytevector x start &opt (end nil))
+(def (slice-bytevector x start &opt end)
   (make-bslice x start (or end (bytevector-size x))))
 
 (def-method (slice (x bytevector) start end)
   (slice-bytevector x start end))
 
-(def (append-bytes! x buf &opt (start 0) (end nil))
+(def (append-bytes! x buf &opt (start 0) end)
   (if (bslice? buf)
       (append-bytes x (bslice-bytevector buf)
                       (+ (bslice-start buf) start)

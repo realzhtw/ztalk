@@ -3,7 +3,7 @@
   to
   step)
 
-(def (range a b &opt (s nil)) (make-range a b (or s 1)))
+(def (range a b &opt s) (make-range a b (or s 1)))
 (def (range-ref r i) (+ (range-from r) (* i (range-step r))))
 (def (range-size r) (div (- (range-to r) (range-from r)) (range-step r)))
 
