@@ -8,7 +8,7 @@
 
 (macro (def sig &rest body)
   (if (symbol? sig)
-      `(assign ,sig ,@body)
+      `(assign ,sig ,(if body (car body) 'nil))
       `(assign ,(car sig) (fn ,(cdr sig) ,@body))))
 
 (macro (do &rest body)
@@ -42,11 +42,6 @@
 
 (macro (afn params &rest body)
   `(rfn (self ,@params) ,@body))
-
-(def (assoc x key)
-  (if (null? x)         nil
-      (is (caar x) key) (car x)
-                        (assoc (cdr x) key)))
 
 (def (list-length xs)
   ((afn (n xs)
@@ -130,6 +125,10 @@
   `(with (,var ,expr)
      ,@body))
 
+(macro (if-let var expr &rest rest)
+  `(let ,var ,expr
+     (if ,var ,@rest)))
+
 (macro (withs bindings &rest body)
   (if (null? bindings)
       `(do ,@body)
@@ -137,16 +136,46 @@
          (withs ,(cddr bindings)
            ,@body))))
 
-(def setters (make-dict))
+(macro (when cnd &rest body)
+  `(if ,cnd (do ,@body)))
 
-(dict-set setters 'car 'set-car)
-(dict-set setters 'cdr 'set-cdr)
-(dict-set setters 'vector-ref 'vector-set)
+(macro (unless cnd &rest body)
+  `(if (not ,cnd) (do ,@body)))
+
+(def (assoc x key)
+  (if (null? x)         nil
+      (is (caar x) key) (car x)
+                        (assoc (cdr x) key)))
+
+(def (alist-ref x key)
+  (if-let e (assoc x key)
+    (cdr e)
+    nil))
+
+(def (alist-for-each x f)
+  (unless (null? x)
+    (f (caar x) (cdar x))
+    (alist-for-each (cdr x) f)))
+
+(let place-setters nil
+  ; Using alist for now, will be replaced with hash-table once it's loaded
+  (def (place-setter getter-name)
+    (alist-ref place-setters getter-name))
+
+  (def (add-place-setter getter-name setter-name)
+    (assign place-setters (cons (cons getter-name setter-name) place-setters)))
+
+  (def (get-place-setters) place-setters))
+
+(add-place-setter 'car 'set-car)
+(add-place-setter 'car 'set-car)
+(add-place-setter 'cdr 'set-cdr)
+(add-place-setter 'vector-ref 'vector-set)
 
 (macro (set place value)
   (if (symbol? place)
       `(assign ,place ,value)
-      (let setter (dict-ref setters (car place))
+      (let setter (place-setter (car place))
         `(,setter ,@(cdr place) ,value))))
 
 (macro (reset x)
@@ -241,12 +270,6 @@
   `(let it ,x
      (and it ,@args)))
 
-(macro (when cnd &rest body)
-  `(if ,cnd (do ,@body)))
-
-(macro (unless cnd &rest body)
-  `(if (not ,cnd) (do ,@body)))
-
 (macro (while cnd &rest body)
   (w/uniq (g)
     `((rfn (,g)
@@ -326,10 +349,6 @@
       (wstring? x)     (wstring-ref x k)
       (dict? x)       (dict-ref x k)
       (pair? x)       (list-ref x k)))
-
-(macro (if-let var expr &rest rest)
-  `(let ,var ,expr
-     (if ,var ,@rest)))
 
 (macro (in x &rest xs)
   (w/uniq (g)
@@ -803,6 +822,7 @@
 
 (import seq)
 (import struct)
+(import hash-table)
 (import bytes)
 (import runes)
 (import strings)

@@ -27,6 +27,10 @@
        ,@body
        ,gs)))
 
+(def (string &rest runes)
+  (accumulate-to-string acc
+    (list-for-each runes (fn (r) (acc r)))))
+
 (def-generic (as-string x))
 
 (def-method (as-string (x wstring))

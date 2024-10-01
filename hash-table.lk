@@ -2,6 +2,10 @@
   &mutable size
   &mutable data)
 
+(let mht make-hash-table
+  (def (make-hash-table)
+    (mht 0 (make-vector 0))))
+
 (def (hash-table-empty? ht)
   (= (hash-table-size ht) 0))
 
@@ -17,18 +21,21 @@
           (cdr e)
           nil))))
 
+(def (hash-table-for-each ht f)
+  (vector-for-each (hash-table-data ht)
+    (fn (bucket)
+      (list-for-each bucket
+        (fn (e) (f (car e) (cdr e)))))))
+
 (def (hash-table-grow ht)
   (withs (n       (max (* (hash-table-size ht) 2) 1)
           new-tbl (make-vector n))
-    (vector-for-each (hash-table-data ht)
-      (fn (bucket)
-        (list-for-each bucket
-          (fn (e)
-            (with (key   (car e)
-                   value (cdr e))
-              (let i (mod (hash key) n)
-                (push (cons key value) (vector-ref new-tbl i))))))))
-    (set (hash-table-data ht) new-tbl)))
+    (hash-table-for-each ht
+      (fn (key value)
+        (let i (mod (hash key) n)
+          (push (cons key value) (vector-ref new-tbl i)))))
+    (set (hash-table-data ht) new-tbl)
+    none))
 
 (def (hash-table-set ht key value)
   (if (> (+ (hash-table-size ht) 1) (hash-table-threshold-capacity ht))
@@ -39,3 +46,45 @@
       (set (cdr e) value)
       (do (push (cons key value) (vector-ref tbl i))
           (inc (hash-table-size ht))))))
+
+(macro (accumulate-to-hash-table acc-fn &rest body)
+  (w/uniq (ght)
+    `(withs (,ght (make-hash-table)
+             ,acc-fn (fn (k v) (hash-table-set ,ght k v)))
+       ,@body
+       ,ght)))
+
+(def (hash-table &rest contents)
+  (accumulate-to-hash-table acc
+    ((afn (xs)
+       (if (null? xs)       nil
+           (null? (cdr xs)) (acc (car xs) nil)
+                            (do (acc (car xs) (cadr xs))
+                                (self (cddr xs)))))
+      contents)))
+
+(def (alist->hash-table x)
+  (accumulate-to-hash-table acc
+    (alist-for-each x (fn (k v) (acc k v)))))
+
+(def-method (serialize (x hash-table) p)
+  (with-output-to p
+    (w/padding pd #\space
+      (print #\{)
+      (hash-table-for-each x (fn (key value) (print pd (repr key) pd (repr value))))
+      (print #\}))))
+
+(def-method (for-each (x hash-table) f) (hash-table-for-each x f))
+
+; Switching to hash-table in setters storage for quicker access.
+(let place-setters (alist->hash-table (get-place-setters))
+  (def (place-setter getter-name)
+    (hash-table-ref place-setters getter-name))
+
+  (def (add-place-setter getter-name setter-name)
+    (hash-table-set place-setters getter-name setter-name))
+
+  (def (get-place-setters) place-setters))
+
+
+(add-place-setter 'hash-table-ref 'hash-table-set)
