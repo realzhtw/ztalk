@@ -136,6 +136,17 @@
          (withs ,(cddr bindings)
            ,@body))))
 
+(macro (w/uniq names &rest body)
+  `(with ,(intersperse names (list-map (fn (_) '(gensym)) names))
+     ,@body))
+
+(macro (or &rest args)
+  (if (null? args)
+      'false
+      (w/uniq (g)
+        `(let ,g ,(car args)
+           (if ,g ,g (or ,@(cdr args)))))))
+
 (macro (when cnd &rest body)
   `(if ,cnd (do ,@body)))
 
@@ -177,25 +188,43 @@
       (let setter (place-setter (car place))
         `(,setter ,@(cdr place) ,value))))
 
+(macro (swap0 place1 place2)
+  (w/uniq (g)
+    `(let ,g ,place1
+       (set ,place1 ,place2)
+       (set ,place2 ,g))))
+
+(def (expand-place macro place &rest rest)
+  (if (symbol? place)
+      `(,macro ,place ,@rest)
+      (let g (list-map (fn (_) (gensym)) (cdr place))
+        `(with ,(intersperse g (cdr place))
+           (,macro (,(car place) ,@g) ,@rest)))))
+
+(macro (swap1 place1 place2 &opt next-swap)
+  (expand-place (or next-swap 'swap0) place1 place2))
+
+(macro (swap place1 place2)
+  (if (and (symbol? place1)
+           (symbol? place2)) `(swap0 ,place1 ,place2)
+      (symbol? place1)       `(swap1 ,place2 ,place1)
+      (symbol? place2)       `(swap1 ,place1 ,place2)
+                             `(swap1 ,place1 ,place2 swap1)))
+
 (macro (reset x)
   `(set ,x nil))
 
-(macro (inc x &opt (n 1))
+(macro (inc0 x n)
   `(set ,x (+ ,x ,n)))
 
-(macro (dec x &opt (n 1))
+(macro (inc x &opt (n 1))
+  (expand-place 'inc0 x n))
+
+(macro (dec0 x n)
   `(set ,x (- ,x ,n)))
 
-(macro (w/uniq names &rest body)
-  `(with ,(intersperse names (list-map (fn (_) '(gensym)) names))
-     ,@body))
-
-(macro (or &rest args)
-  (if (null? args)
-      'false
-      (w/uniq (g)
-        `(let ,g ,(car args)
-           (if ,g ,g (or ,@(cdr args)))))))
+(macro (dec x &opt (n 1))
+  (expand-place 'dec0 x n))
 
 (let sentinel (gensym)
   (def (make-param &opt x)
