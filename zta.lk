@@ -313,7 +313,7 @@
           (if ,cnd
             (do ,@body
                 (,iter))
-            ,var))))))
+            none))))))
 
 (def (list? x)
   (or (pair? x)
@@ -392,6 +392,8 @@
 (def-method (push-back (x vector) value) (vector-push-back x value))
 (def-method (push-back (x bytevector) value) (bytevector-push-back x value))
 (def-method (push-back (x wstring) value) (wstring-push-back x value))
+
+(def-generic (slice x start &opt end))
 
 (macro (accumulate-to-wstring acc-fn &rest body)
   (w/uniq (gs)
@@ -558,6 +560,12 @@
 (def (atom-delimiter? c)
   (or (whitespace? c)
       (in c #\) #\( #\[ #\] #\{ #\} #\_)))
+
+(def-generic (write-object x p)
+  (if (is-a p 'input-port)
+      (write-wstring "<unknown object>" p)
+      (cl-write x p))
+  none)
 
 (def (make-iomanip f)
   (annotate 'iomanip f))
@@ -795,38 +803,7 @@
                        (write-object value s))))
   (write-char #\} s))
 
-(def-method (write-object (x char) s) (write-char x s))
-
-(def-method (write-object (x symbol) s) (write-wstring (symbol-name x) s))
-
-(def (print-cdr x)
-  (unless (null? x)
-    (if (pair? x)
-       (do (print #\space (car x))
-           (print-cdr (cdr x)))
-       (print " . " x))))
-
-(def-method (write-object (x pair) s)
-  (with-output-to s
-    (print #\( (car x))
-    (print-cdr (cdr x))
-    (print #\))))
-
-(def-method (write-object (x macro) s)
-  (with-output-to s
-    (print "<macro " (fn-params (rep x)) #\>)))
-
-(def-method (write-object (x fn) s)
-  (with-output-to s
-    (print "<fn " (fn-params x) #\>)))
-
-(def-method (write-object (x iomanip) s)
-  (apply-iomanip x s))
-
-(def-generic (serialize x p) (write-object x p))
-
-(def-generic (slice x start &opt end))
-
+(import serialize)
 (import hash-table)
 (import seq)
 (import struct)
