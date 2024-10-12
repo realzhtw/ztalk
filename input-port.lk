@@ -34,8 +34,8 @@
           n     (- end start)
           pos   (max 0 (- max-rune-length n)))
     (when (> n 0)
-      (copy-bytes (input-port-buffer p) pos
-                  (input-port-buffer p) start end))
+      (let buf (input-port-buffer p)
+        (copy-bytes! buf buf pos start end)))
     (input-port-set-buf-rdpos p pos)
     (input-port-set-buf-endpos p (+ pos n))))
 
@@ -57,9 +57,8 @@
 (def (input-port-read p buf start end)
   (if (input-port-ensure-buffer p 1)
       (let n (min (- end start) (input-port-buffer-bytes-left p))
-        (copy-bytes buf start (input-port-buffer p)
-                              (input-port-buf-rdpos p)
-                              n)
+        (copy-bytes! buf (input-port-buffer p)
+                     start (input-port-buf-rdpos p) n)
         (inc (input-port-buf-rdpos p) n)
         n)
       0))

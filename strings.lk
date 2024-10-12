@@ -1,5 +1,8 @@
-(def (make-string &opt bytes)
-  (annotate 'string (or bytes (make-bytevector 0))))
+(def (make-string &opt contents)
+  (annotate 'string
+            (if contents
+                (copy-bytes contents)
+                (make-bytevector))))
 
 (def (make-adjustable-string &opt (n 0))
   (annotate 'string (make-adjustable-bytevector n)))

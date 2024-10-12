@@ -27,8 +27,8 @@
                  (output-port-buffer p)
                  0 n)
       (if (> wrpos endpos)
-        (copy-bytes (output-port-buffer p) 0
-                    (output-port-buffer p) endpos wrpos))
+        (let buf (output-port-buffer p)
+          (copy-bytes! buf buf 0 endpos wrpos)))
       (dec (output-port-buf-wrpos p) n)
       n)))
 
@@ -41,9 +41,8 @@
 (def (output-port-write p buf start end)
   (if (output-port-buffered? p)
     (let n (min (- end start) (output-port-buffer-space-left p))
-      (copy-bytes (output-port-buffer p)
-                  (output-port-buf-wrpos p)
-                  buf start (+ start n))
+      (copy-bytes! (output-port-buffer p) buf 
+                   (output-port-buf-wrpos p) start (+ start n))
       (output-port-advance-wrpos p n))
     (write (output-port-backend p) buf start end)))
 

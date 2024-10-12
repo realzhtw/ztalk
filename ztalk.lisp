@@ -362,7 +362,8 @@
 (defun make-bytevector (n)
   (make-array n :element-type '(unsigned-byte 8)))
 
-(zexport make-bytevector (n))
+(zdefun make-bytevector (&optional (n 0))
+  (make-bytevector n))
 
 (zdefun bytes (&rest xs)
   (make-array (length xs) :element-type '(unsigned-byte 8)
@@ -378,7 +379,8 @@
 (zdefun bytevector-set (x i v) (setf (aref x i) v))
 (zdefun bytevector-size (x) (length x))
 
-(zdefun copy-bytes (dst pos src start end) (replace dst src :start1 pos :start2 start :end2 end))
+(zdefun copy-bytevector! (dst src &optional (pos 0) (start 0) end)
+  (replace dst src :start1 pos :start2 start :end2 end))
 
 (zdefun make-adjustable-bytevector (&optional (n 0))
   (make-array n :element-type '(unsigned-byte 8)

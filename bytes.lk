@@ -1,3 +1,5 @@
+(add-place-setter 'bytevector-ref 'bytevector-set)
+
 (def-method (len (x bytevector)) (bytevector-size x))
 
 (def-method (for-each (x bytevector) f)
@@ -29,7 +31,7 @@
   (print-bytevector-slice p x 0 (bytevector-size x)))
 
 (def-method (write-object (x bytevector) p)
-  (write-bytes p x))
+  (write-all p x 0 (bytevector-size x)))
 
 (struct bslice
   bytevector
@@ -39,6 +41,13 @@
 (def (bslice-ref x i)
   (bytevector-ref (bslice-bytevector x)
                   (+ (bslice-start x) i)))
+
+(def (bslice-set x i b)
+  (bytevector-set (bslice-bytevector x)
+                  (+ (bslice-start x) i)
+                  b))
+
+(add-place-setter 'bslice-ref 'bslice-set)
 
 ;(def-method (ref (x bslice) i) (bslice-ref x i))
 
@@ -50,13 +59,30 @@
 
 (def (bslice-size x) (- (bslice-end x) (bslice-start x)))
 
+(def (copy-bytevector x)
+  (let r (make-bytevector (bytevector-size x))
+    (copy-bytevector! r x)
+    r))
+
+(def (copy-bytes! dst src &opt (pos 0) (start 0) end)
+  (if (bytevector? src) (copy-bytevector! dst src pos start end)
+      (bslice? src)     (copy-bytevector! dst (bslice-bytevector src)
+                                          pos (+ (bslice-start src) start)
+                                          (if end
+                                              (min (+ (bslice-start src) end) (bslice-end src))
+                                              (bslice-end src)))
+                        (raise 'copy-bytes!)))
+
 (def (copy-bslice x)
-  (with (b     (bslice-bytevector x)
-         start (bslice-start x)
-         end   (bslice-end x))
-  (let r (make-bytevector (- end start))
-    (copy-bytes r 0 b start end)
-    r)))
+  (let r (make-bytevector (bslice-size x))
+    (copy-bytes! r (bslice-bytevector x)
+                 0 (bslice-start x) (bslice-end x))
+    r))
+
+(def (copy-bytes x)
+  (if (bytevector? x) (copy-bytevector x)
+      (bslice? x)     (copy-bslice x)
+                      (raise 'copy-bytes)))
 
 (def (slice-bytevector x start &opt end)
   (make-bslice x start (or end (bytevector-size x))))
@@ -75,4 +101,4 @@
               end (or end (bytevector-size buf))
               n   (- end start))
         (bytevector-resize x (+ pos n))
-        (copy-bytes x pos buf start end))))
+        (copy-bytes! x pos buf start end))))
