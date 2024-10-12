@@ -153,9 +153,9 @@
 (macro (unless cnd &rest body)
   `(if (not ,cnd) (do ,@body)))
 
-(def (assoc x key)
+(def (assoc x key &opt (eq is))
   (if (null? x)         nil
-      (is (caar x) key) (car x)
+      (eq (caar x) key) (car x)
                         (assoc (cdr x) key)))
 
 (def (alist-ref x key)
@@ -782,6 +782,9 @@
 
 (macro (import module)
   `(import-module (symbol-name (quote ,module))))
+
+(macro (force-import module)
+  `(import-module (symbol-name (quote ,module)) true))
 
 (def (make-padding mortar)
   (make-iomanip (let first true

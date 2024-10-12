@@ -1,9 +1,14 @@
-(def (make-hash-table) (annotate 'hash-table (cons 0 (make-vector 0))))
+
+(def (make-hash-table &opt (eq eq) (n 0))
+  (annotate 'hash-table
+            (vector (make-vector n) 0 eq)))
+
 (def (hash-table? x) (is-a x 'hash-table))
-(def (hash-table-size ht) (car (rep ht)))
-(def (hash-table-data ht) (cdr (rep ht)))
-(def (hash-table-set-size ht n) (set (car (rep ht)) n))
-(def (hash-table-set-data ht d) (set (cdr (rep ht)) d))
+(def (hash-table-data ht) (vector-ref (rep ht) 0))
+(def (hash-table-size ht) (vector-ref (rep ht) 1))
+(def (hash-table-eq ht) (vector-ref (rep ht) 2))
+(def (hash-table-set-size ht n) (set (vector-ref (rep ht) 1) n))
+(def (hash-table-set-data ht d) (set (vector-ref (rep ht) 0) d))
 (add-place-setter 'hash-table-size 'hash-table-set-size)
 (add-place-setter 'hash-table-data 'hash-table-set-data)
 
@@ -17,8 +22,9 @@
   (if (hash-table-empty? ht)
       defval
       (withs (tbl (hash-table-data ht)
+              eq  (hash-table-eq ht)
               i   (mod (hash key) (vector-size tbl)))
-        (if-let e (assoc (vector-ref tbl i) key)
+        (if-let e (assoc (vector-ref tbl i) key eq)
           (cdr e)
           defval))))
 
@@ -42,8 +48,9 @@
   (if (> (+ (hash-table-size ht) 1) (hash-table-threshold-capacity ht))
     (hash-table-grow ht))
   (withs (tbl (hash-table-data ht)
+          eq  (hash-table-eq ht)
           i   (mod (hash key) (vector-size tbl)))
-    (if-let e (assoc (vector-ref tbl i) key)
+    (if-let e (assoc (vector-ref tbl i) key eq)
       (set (cdr e) value)
       (do (push (cons key value) (vector-ref tbl i))
           (inc (hash-table-size ht))))))
@@ -55,15 +62,15 @@
 ;        (hash-table-set m n (+ (hash-table-ref m n 0) 1))))
 ;    m))
 
-(macro (accumulate-to-hash-table acc-fn &rest body)
+(macro (accumulate-to-hash-table eq acc-fn &rest body)
   (w/uniq (ght)
-    `(withs (,ght (make-hash-table)
+    `(withs (,ght (make-hash-table ,eq)
              ,acc-fn (fn (k v) (hash-table-set ,ght k v)))
        ,@body
        ,ght)))
 
 (def (hash-table &rest contents)
-  (accumulate-to-hash-table acc
+  (accumulate-to-hash-table eq acc
     ((afn (xs)
        (if (null? xs)       nil
            (null? (cdr xs)) (acc (car xs) nil)
@@ -71,8 +78,8 @@
                                 (self (cddr xs)))))
       contents)))
 
-(def (alist->hash-table x)
-  (accumulate-to-hash-table acc
+(def (alist->hash-table eq x)
+  (accumulate-to-hash-table eq acc
     (alist-for-each x (fn (k v) (acc k v)))))
 
 (def-method (serialize (x hash-table) p)
@@ -86,7 +93,7 @@
 
 ; Switching to hash-table in setters storage.
 (unless (hash-table? place-setters)
-  (set place-setters (alist->hash-table place-setters)))
+  (set place-setters (alist->hash-table is place-setters)))
 
 (def (place-setter getter-name)
   (hash-table-ref place-setters getter-name))
@@ -97,6 +104,6 @@
 (add-place-setter 'hash-table-ref 'hash-table-set)
 
 ; Switching to hash-table in modules registry
-(set loaded-modules (alist->hash-table loaded-modules))
+(set loaded-modules (alist->hash-table equal loaded-modules))
 (def (loaded? path) (hash-table-ref loaded-modules path))
 (def (register-module path) (hash-table-set loaded-modules path true))
