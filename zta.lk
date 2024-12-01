@@ -697,7 +697,7 @@
           (if (in c #\_)
               (do (read-char s)
                   (let y (sread s true)
-                    `(ref ,x ,y)))
+                    `(vector-ref ,x ,y)))
               x)))
       eof))
 

@@ -24,7 +24,7 @@
       (withs (tbl (hash-table-data ht)
               eq  (hash-table-eq ht)
               i   (mod (hash key) (vector-size tbl)))
-        (if-let e (assoc (vector-ref tbl i) key eq)
+        (if-let e (assoc tbl_i key eq)
           (cdr e)
           defval))))
 
@@ -40,7 +40,7 @@
     (hash-table-for-each ht
       (fn (key value)
         (let i (mod (hash key) n)
-          (push (cons key value) (vector-ref new-tbl i)))))
+          (push (cons key value) new-tbl_i))))
     (set (hash-table-data ht) new-tbl)
     none))
 
@@ -50,9 +50,9 @@
   (withs (tbl (hash-table-data ht)
           eq  (hash-table-eq ht)
           i   (mod (hash key) (vector-size tbl)))
-    (if-let e (assoc (vector-ref tbl i) key eq)
+    (if-let e (assoc tbl_i key eq)
       (set (cdr e) value)
-      (do (push (cons key value) (vector-ref tbl i))
+      (do (push (cons key value) tbl_i)
           (inc (hash-table-size ht))))))
 
 ;(def (hash-table-bucket-stats ht)

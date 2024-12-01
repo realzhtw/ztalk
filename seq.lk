@@ -29,7 +29,7 @@
 (def (as-seq x)
   (if (vector? x) ((afn (i)
                      (if (< i (vector-size x))
-                         (seq (vector-ref x i) (self (+ i 1)))
+                         (seq  x_i (self (+ i 1)))
                          nil)) 0)
       (list? x)   ((afn (l) (if (null? l) nil (seq (car l) (self (cdr l))))) x)
                   (error 'as-seq "Can't assume it's a sequence.")))
