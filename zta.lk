@@ -11,6 +11,10 @@
       `(assign ,sig ,(if body (car body) 'nil))
       `(assign ,(car sig) (fn ,(cdr sig) ,@body))))
 
+(def (Y op)
+  ((fn (f)     (fn (x) ((f f) x)))
+   (fn (f) (op (fn (x) ((f f) x))))))
+
 (macro (do &rest body)
   `((fn () ,@body)))
 
