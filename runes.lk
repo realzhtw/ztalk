@@ -10,7 +10,7 @@
         (< x #x80000000) 6
                          nil)))
 
-(def (encode-rune r buf pos)
+(def (encode-rune! buf pos r)
   (let x (char-code r)
     (if (< x #x80)
         (do (bytevector-set buf pos x) 1)
@@ -22,6 +22,11 @@
                                 (bitwise-or #x80
                                             (bitwise-and #x3f (>> x (* (- n i 1) 6))))))
           n))))
+
+(def (encode-rune r)
+  (let buf (make-bytevector (rune-length r))
+    (encode-rune! buf 0 r)
+    buf))
 
 (def (decode-rune-length b)
   (if (= (>> b 7)   0) 1
@@ -46,6 +51,6 @@
 (when (test-on-import)
   (with (buf (bytes 0 0 0 0)
          c   #\ю)
-    (encode-rune c buf 0)
+    (encode-rune! buf 0 c)
     (if (not (is c (decode-rune buf 0)))
       (raise 'test-on-import))))

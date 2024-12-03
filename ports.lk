@@ -42,6 +42,15 @@
           buf (make-bytevector (+ (file-info-block-size (fdport-stat p)) max-rune-length)))
     (make-input-port p buf 0 0)))
 
+(def (call-with-input-file path f)
+  (let p (open-input-file2 path)
+    (after (f p) (close-input-port p))))
+
+(macro (with-input-from-file path &rest body)
+  (w/uniq (p)
+    `(call-with-input-file ,path
+       (fn (,p) (with-input-from ,p ,@body)))))
+
 (def-method (write (dst bytevector) buf start end)
   (append-bytes! dst buf start end)
   (- end start))

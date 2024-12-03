@@ -509,7 +509,7 @@
 (def-param current-error-port process-stderr)
 
 (macro (with-input-from p &rest body)
-  `(w/param stdin ,p ,@body))
+  `(w/param current-input-port ,p ,@body))
 
 (macro (with-output-to p &rest body)
   `(w/param current-output-port ,p ,@body))

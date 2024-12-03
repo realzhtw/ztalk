@@ -102,3 +102,15 @@
               n   (- end start))
         (bytevector-resize x (+ pos n))
         (copy-bytes! x pos buf start end))))
+
+(def (bytevector-find-next x b start end)
+  ((afn (i)
+     (if (< i end)
+       (if (= (bytevector-ref x i) b)
+           i
+           (self (+ i 1)))
+       nil))
+    start))
+
+(def (bytevector-find x b start end)
+  (bytevector-find-next x b 0 (bytevector-size x)))

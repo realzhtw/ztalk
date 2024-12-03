@@ -58,7 +58,7 @@
 
 (def (write-rune r p)
   (let buf (output-port-buffer p)
-    (let n (encode-rune r buf (output-port-buf-wrpos p))
+    (let n (encode-rune! buf (output-port-buf-wrpos p) r)
       (if (output-port-buffered? p)
           (output-port-advance-wrpos p n)
           (write (output-port-backend p) buf 0 n)))))
